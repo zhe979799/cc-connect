@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -569,6 +570,25 @@ func (p *Platform) SendWithButtons(ctx context.Context, rctx any, content string
 		if err != nil {
 			return fmt.Errorf("telegram: sendWithButtons: %w", err)
 		}
+	}
+	return nil
+}
+
+// SendFile sends a local file as a Telegram document.
+func (p *Platform) SendFile(ctx context.Context, rctx any, path string, caption string) error {
+	rc, ok := rctx.(replyContext)
+	if !ok {
+		return fmt.Errorf("telegram: invalid reply context type %T", rctx)
+	}
+
+	doc := tgbotapi.NewDocument(rc.chatID, tgbotapi.FilePath(path))
+	if caption == "" {
+		caption = filepath.Base(path)
+	}
+	doc.Caption = caption
+
+	if _, err := p.bot.Send(doc); err != nil {
+		return fmt.Errorf("telegram: sendFile: %w", err)
 	}
 	return nil
 }

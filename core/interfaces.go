@@ -103,6 +103,12 @@ type InlineButtonSender interface {
 	SendWithButtons(ctx context.Context, replyCtx any, content string, buttons [][]ButtonOption) error
 }
 
+// FileSender is an optional interface for platforms that support sending local
+// files back to the user (e.g. Telegram documents).
+type FileSender interface {
+	SendFile(ctx context.Context, replyCtx any, path string, caption string) error
+}
+
 // CardSender is an optional interface for platforms that support sending
 // structured rich cards (e.g. Feishu Interactive Card). Platforms that do not
 // implement this interface will receive a plain-text fallback via Card.RenderText().

@@ -87,6 +87,18 @@ func (p *stubInlineButtonPlatform) SendWithButtons(_ context.Context, _ any, con
 	return nil
 }
 
+type stubFileSenderPlatform struct {
+	stubInlineButtonPlatform
+	sentFilePath    string
+	sentFileCaption string
+}
+
+func (p *stubFileSenderPlatform) SendFile(_ context.Context, _ any, path string, caption string) error {
+	p.sentFilePath = path
+	p.sentFileCaption = caption
+	return nil
+}
+
 type stubCardPlatform struct {
 	stubPlatformEngine
 	repliedCards []*Card
@@ -173,6 +185,15 @@ func (a *stubWorkDirAgent) SetWorkDir(dir string) {
 
 func (a *stubWorkDirAgent) GetWorkDir() string {
 	return a.workDir
+}
+
+type stubCompressAgent struct {
+	stubAgent
+	command string
+}
+
+func (a *stubCompressAgent) CompressCommand() string {
+	return a.command
 }
 
 type stubListAgent struct {
@@ -911,6 +932,47 @@ func TestCmdHelp_UsesLegacyTextOnPlatformWithoutCardSupport(t *testing.T) {
 	}
 }
 
+func TestCmdHelp_ShowsNativeCompressCommandOnPlainPlatform(t *testing.T) {
+	p := &stubPlatformEngine{n: "plain"}
+	e := NewEngine("test", &stubCompressAgent{command: "/compact"}, []Platform{p}, "", LangEnglish)
+	msg := &Message{SessionKey: "test:user1", ReplyCtx: "ctx"}
+
+	e.cmdHelp(p, msg)
+
+	if len(p.sent) != 1 {
+		t.Fatalf("sent messages = %d, want 1", len(p.sent))
+	}
+	if !strings.Contains(p.sent[0], "/compress /compact") {
+		t.Fatalf("help text = %q, want native compress alias", p.sent[0])
+	}
+}
+
+func TestGetAllCommands_IncludesNativeCompressCommand(t *testing.T) {
+	e := NewEngine("test", &stubCompressAgent{command: "/compact"}, nil, "", LangEnglish)
+
+	commands := e.GetAllCommands()
+
+	var foundCompress bool
+	var foundCompact bool
+	for _, cmd := range commands {
+		switch cmd.Command {
+		case "compress":
+			foundCompress = true
+		case "compact":
+			foundCompact = true
+			if got := cmd.Description; got != e.i18n.T(MsgBuiltinCmdCompress) {
+				t.Fatalf("compact description = %q, want %q", got, e.i18n.T(MsgBuiltinCmdCompress))
+			}
+		}
+	}
+	if !foundCompress {
+		t.Fatalf("commands = %+v, want built-in compress command", commands)
+	}
+	if !foundCompact {
+		t.Fatalf("commands = %+v, want native compact command", commands)
+	}
+}
+
 func TestCmdList_UsesLegacyTextOnPlatformWithoutCardSupport(t *testing.T) {
 	p := &stubPlatformEngine{n: "plain"}
 	sessions := []AgentSessionInfo{{ID: "session-a", Summary: "First session", MessageCount: 3, ModifiedAt: time.Date(2026, 3, 11, 2, 0, 0, 0, time.UTC)}}
@@ -1559,6 +1621,100 @@ func TestEngine_AdminFrom_GatesDir(t *testing.T) {
 	}
 	if agent.workDir != tempDir {
 		t.Fatalf("workDir = %q, want unchanged %q", agent.workDir, tempDir)
+	}
+}
+
+func TestCmdTree_UsesInlineButtonsForDirectoryBrowse(t *testing.T) {
+	p := &stubInlineButtonPlatform{stubPlatformEngine: stubPlatformEngine{n: "inline-only"}}
+	tempDir := t.TempDir()
+	if err := os.Mkdir(filepath.Join(tempDir, "core"), 0o755); err != nil {
+		t.Fatalf("mkdir core: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(tempDir, "README.md"), []byte("hi"), 0o644); err != nil {
+		t.Fatalf("write README: %v", err)
+	}
+	agent := &stubWorkDirAgent{workDir: tempDir}
+	e := NewEngine("test", agent, []Platform{p}, "", LangEnglish)
+
+	e.cmdTree(p, &Message{SessionKey: "test:user1", ReplyCtx: "ctx"}, nil)
+
+	if len(p.buttonRows) < 2 {
+		t.Fatalf("button rows = %d, want at least 2", len(p.buttonRows))
+	}
+	if got := p.buttonRows[0][0].Data; got != "cmd:/tree open 1" {
+		t.Fatalf("first tree button = %q, want %q", got, "cmd:/tree open 1")
+	}
+	if got := p.buttonRows[1][0].Data; got != "cmd:/tree pick 2" {
+		t.Fatalf("second tree button = %q, want %q", got, "cmd:/tree pick 2")
+	}
+	if !strings.Contains(p.buttonContent, "Project tree") {
+		t.Fatalf("content = %q, want project tree header", p.buttonContent)
+	}
+}
+
+func TestCmdTree_PickFileRepliesWithPath(t *testing.T) {
+	p := &stubInlineButtonPlatform{stubPlatformEngine: stubPlatformEngine{n: "inline-only"}}
+	tempDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(tempDir, "go.mod"), []byte("module test"), 0o644); err != nil {
+		t.Fatalf("write go.mod: %v", err)
+	}
+	agent := &stubWorkDirAgent{workDir: tempDir}
+	e := NewEngine("test", agent, []Platform{p}, "", LangEnglish)
+	msg := &Message{SessionKey: "test:user1", ReplyCtx: "ctx"}
+
+	e.cmdTree(p, msg, nil)
+	e.handleCommand(p, msg, "/tree pick 1")
+
+	if len(p.sent) != 1 {
+		t.Fatalf("sent messages = %d, want 1", len(p.sent))
+	}
+	if !strings.Contains(p.sent[0], "go.mod") {
+		t.Fatalf("reply = %q, want selected file path", p.sent[0])
+	}
+}
+
+func TestCmdTree_PickFileSendsAttachmentWhenPlatformSupportsIt(t *testing.T) {
+	p := &stubFileSenderPlatform{
+		stubInlineButtonPlatform: stubInlineButtonPlatform{
+			stubPlatformEngine: stubPlatformEngine{n: "inline-file"},
+		},
+	}
+	tempDir := t.TempDir()
+	target := filepath.Join(tempDir, "go.mod")
+	if err := os.WriteFile(target, []byte("module test"), 0o644); err != nil {
+		t.Fatalf("write go.mod: %v", err)
+	}
+	agent := &stubWorkDirAgent{workDir: tempDir}
+	e := NewEngine("test", agent, []Platform{p}, "", LangEnglish)
+	msg := &Message{SessionKey: "test:user1", ReplyCtx: "ctx"}
+
+	e.cmdTree(p, msg, nil)
+	e.handleCommand(p, msg, "/tree pick 1")
+
+	if p.sentFilePath != target {
+		t.Fatalf("sent file path = %q, want %q", p.sentFilePath, target)
+	}
+	if p.sentFileCaption != "go.mod" {
+		t.Fatalf("sent file caption = %q, want go.mod", p.sentFileCaption)
+	}
+	if len(p.sent) != 0 {
+		t.Fatalf("fallback text replies = %v, want none", p.sent)
+	}
+}
+
+func TestCmdTree_RejectsPathOutsideRoot(t *testing.T) {
+	p := &stubPlatformEngine{n: "plain"}
+	tempDir := t.TempDir()
+	agent := &stubWorkDirAgent{workDir: tempDir}
+	e := NewEngine("test", agent, []Platform{p}, "", LangEnglish)
+
+	e.cmdTree(p, &Message{SessionKey: "test:user1", ReplyCtx: "ctx"}, []string{".."})
+
+	if len(p.sent) != 1 {
+		t.Fatalf("sent messages = %d, want 1", len(p.sent))
+	}
+	if !strings.Contains(p.sent[0], tempDir) {
+		t.Fatalf("reply = %q, want root path warning", p.sent[0])
 	}
 }
 

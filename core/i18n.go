@@ -249,8 +249,8 @@ const (
 	MsgStatusCron       MsgKey = "status_cron"
 	MsgStatusQuiet      MsgKey = "status_quiet"
 	MsgStatusSessionKey MsgKey = "status_session_key"
-	MsgQuietOnShort  MsgKey = "quiet_on_short"
-	MsgQuietOffShort MsgKey = "quiet_off_short"
+	MsgQuietOnShort     MsgKey = "quiet_on_short"
+	MsgQuietOffShort    MsgKey = "quiet_off_short"
 
 	MsgModelDefault               MsgKey = "model_default"
 	MsgModelListTitle             MsgKey = "model_list_title"
@@ -451,29 +451,40 @@ const (
 	MsgBuiltinCmdBind      MsgKey = "bind"
 	MsgBuiltinCmdShell     MsgKey = "shell"
 	MsgBuiltinCmdDir       MsgKey = "dir"
+	MsgBuiltinCmdTree      MsgKey = "tree"
 
-	MsgDirChanged      MsgKey = "dir_changed"
-	MsgDirCurrent      MsgKey = "dir_current"
-	MsgDirUsage        MsgKey = "dir_usage"
-	MsgDirNotSupported MsgKey = "dir_not_supported"
-	MsgDirInvalidPath  MsgKey = "dir_invalid_path"
+	MsgDirChanged       MsgKey = "dir_changed"
+	MsgDirCurrent       MsgKey = "dir_current"
+	MsgDirUsage         MsgKey = "dir_usage"
+	MsgDirNotSupported  MsgKey = "dir_not_supported"
+	MsgDirInvalidPath   MsgKey = "dir_invalid_path"
+	MsgTreeHeader       MsgKey = "tree_header"
+	MsgTreeUsage        MsgKey = "tree_usage"
+	MsgTreeNotSupported MsgKey = "tree_not_supported"
+	MsgTreeInvalidPath  MsgKey = "tree_invalid_path"
+	MsgTreeOutsideRoot  MsgKey = "tree_outside_root"
+	MsgTreeEmpty        MsgKey = "tree_empty"
+	MsgTreePage         MsgKey = "tree_page"
+	MsgTreeHint         MsgKey = "tree_hint"
+	MsgTreeSelected     MsgKey = "tree_selected"
+	MsgTreeButtonUp     MsgKey = "tree_button_up"
 
 	// Multi-workspace messages
-	MsgWsNotEnabled        MsgKey = "ws_not_enabled"
-	MsgWsNoBinding         MsgKey = "ws_no_binding"
-	MsgWsInfo              MsgKey = "ws_info"
-	MsgWsInitUsage         MsgKey = "ws_init_usage"
-	MsgWsBindUsage         MsgKey = "ws_bind_usage"
-	MsgWsBindSuccess       MsgKey = "ws_bind_success"
-	MsgWsBindNotFound      MsgKey = "ws_bind_not_found"
-	MsgWsUnbindSuccess     MsgKey = "ws_unbind_success"
-	MsgWsListEmpty         MsgKey = "ws_list_empty"
-	MsgWsListTitle         MsgKey = "ws_list_title"
-	MsgWsNotFoundHint      MsgKey = "ws_not_found_hint"
-	MsgWsResolutionError   MsgKey = "ws_resolution_error"
-	MsgWsCloneProgress     MsgKey = "ws_clone_progress"
-	MsgWsCloneSuccess      MsgKey = "ws_clone_success"
-	MsgWsCloneFailed       MsgKey = "ws_clone_failed"
+	MsgWsNotEnabled      MsgKey = "ws_not_enabled"
+	MsgWsNoBinding       MsgKey = "ws_no_binding"
+	MsgWsInfo            MsgKey = "ws_info"
+	MsgWsInitUsage       MsgKey = "ws_init_usage"
+	MsgWsBindUsage       MsgKey = "ws_bind_usage"
+	MsgWsBindSuccess     MsgKey = "ws_bind_success"
+	MsgWsBindNotFound    MsgKey = "ws_bind_not_found"
+	MsgWsUnbindSuccess   MsgKey = "ws_unbind_success"
+	MsgWsListEmpty       MsgKey = "ws_list_empty"
+	MsgWsListTitle       MsgKey = "ws_list_title"
+	MsgWsNotFoundHint    MsgKey = "ws_not_found_hint"
+	MsgWsResolutionError MsgKey = "ws_resolution_error"
+	MsgWsCloneProgress   MsgKey = "ws_clone_progress"
+	MsgWsCloneSuccess    MsgKey = "ws_clone_success"
+	MsgWsCloneFailed     MsgKey = "ws_clone_failed"
 )
 
 var messages = map[MsgKey]map[Language]string{
@@ -713,6 +724,7 @@ var messages = map[MsgKey]map[Language]string{
 			"/tts [always|voice_only]\n  View/switch text-to-speech mode\n\n" +
 			"/shell <command>\n  Run a shell command and return the output\n\n" +
 			"/dir [path]\n  Show or switch agent working directory\n\n" +
+			"/tree [path]\n  Browse files under the current work directory\n\n" +
 			"/stop\n  Stop current execution\n\n" +
 			"/cron [add|list|del|enable|disable]\n  Manage scheduled tasks\n\n" +
 			"/heartbeat [status|pause|resume|run|interval]\n  Manage heartbeat\n\n" +
@@ -755,6 +767,7 @@ var messages = map[MsgKey]map[Language]string{
 			"/tts [always|voice_only]\n  查看/切换语音合成模式\n\n" +
 			"/shell <命令>\n  执行 Shell 命令并返回结果\n\n" +
 			"/dir [路径]\n  查看或切换 Agent 工作目录\n\n" +
+			"/tree [路径]\n  浏览当前工作目录下的文件\n\n" +
 			"/stop\n  停止当前执行\n\n" +
 			"/cron [add|list|del|enable|disable]\n  管理定时任务\n\n" +
 			"/heartbeat [status|pause|resume|run|interval]\n  管理心跳\n\n" +
@@ -797,6 +810,7 @@ var messages = map[MsgKey]map[Language]string{
 			"/tts [always|voice_only]\n  查看/切換語音合成模式\n\n" +
 			"/shell <命令>\n  執行 Shell 命令並返回結果\n\n" +
 			"/dir [路徑]\n  查看或切換 Agent 工作目錄\n\n" +
+			"/tree [路徑]\n  瀏覽目前工作目錄下的檔案\n\n" +
 			"/stop\n  停止當前執行\n\n" +
 			"/cron [add|list|del|enable|disable]\n  管理定時任務\n\n" +
 			"/heartbeat [status|pause|resume|run|interval]\n  管理心跳\n\n" +
@@ -838,6 +852,7 @@ var messages = map[MsgKey]map[Language]string{
 			"/tts [always|voice_only]\n  音声合成モードの表示/切り替え\n\n" +
 			"/shell <コマンド>\n  シェルコマンドを実行して結果を返す\n\n" +
 			"/dir [パス]\n  エージェントの作業ディレクトリを表示/切り替え\n\n" +
+			"/tree [パス]\n  現在の作業ディレクトリ配下を閲覧\n\n" +
 			"/stop\n  現在の実行を停止\n\n" +
 			"/cron [add|list|del|enable|disable]\n  スケジュールタスク管理\n\n" +
 			"/heartbeat [status|pause|resume|run|interval]\n  ハートビート管理\n\n" +
@@ -879,6 +894,7 @@ var messages = map[MsgKey]map[Language]string{
 			"/tts [always|voice_only]\n  Ver/cambiar modo de síntesis de voz\n\n" +
 			"/shell <comando>\n  Ejecutar un comando shell y devolver la salida\n\n" +
 			"/dir [ruta]\n  Ver o cambiar el directorio de trabajo del agente\n\n" +
+			"/tree [ruta]\n  Explorar archivos bajo el directorio de trabajo actual\n\n" +
 			"/stop\n  Detener ejecución actual\n\n" +
 			"/cron [add|list|del|enable|disable]\n  Gestionar tareas programadas\n\n" +
 			"/heartbeat [status|pause|resume|run|interval]\n  Gestionar heartbeat\n\n" +
@@ -1001,6 +1017,7 @@ var messages = map[MsgKey]map[Language]string{
 		LangEnglish: "**Tools & Automation**\n" +
 			"/shell <command> — Run a shell command\n" +
 			"/dir [path] — Show or switch work directory\n" +
+			"/tree [path] — Browse files in the current work directory\n" +
 			"/cron [add|list|del|...] — Scheduled tasks\n" +
 			"/commands [add|del] — Custom commands\n" +
 			"/alias [add|del] — Command aliases\n" +
@@ -1010,6 +1027,7 @@ var messages = map[MsgKey]map[Language]string{
 		LangChinese: "**工具与自动化**\n" +
 			"/shell <命令> — 执行 Shell 命令\n" +
 			"/dir [路径] — 查看或切换工作目录\n" +
+			"/tree [路径] — 浏览当前工作目录文件\n" +
 			"/cron [add|list|del|...] — 定时任务\n" +
 			"/commands [add|del] — 自定义命令\n" +
 			"/alias [add|del] — 命令别名\n" +
@@ -1019,6 +1037,7 @@ var messages = map[MsgKey]map[Language]string{
 		LangTraditionalChinese: "**工具與自動化**\n" +
 			"/shell <命令> — 執行 Shell 命令\n" +
 			"/dir [路徑] — 查看或切換工作目錄\n" +
+			"/tree [路徑] — 瀏覽目前工作目錄檔案\n" +
 			"/cron [add|list|del|...] — 定時任務\n" +
 			"/commands [add|del] — 自訂命令\n" +
 			"/alias [add|del] — 命令別名\n" +
@@ -1028,6 +1047,7 @@ var messages = map[MsgKey]map[Language]string{
 		LangJapanese: "**ツール・自動化**\n" +
 			"/shell <コマンド> — シェルコマンド実行\n" +
 			"/dir [パス] — 作業ディレクトリの表示/切り替え\n" +
+			"/tree [パス] — 現在の作業ディレクトリ配下を閲覧\n" +
 			"/cron [add|list|del|...] — スケジュールタスク\n" +
 			"/commands [add|del] — カスタムコマンド\n" +
 			"/alias [add|del] — コマンドエイリアス\n" +
@@ -1037,6 +1057,7 @@ var messages = map[MsgKey]map[Language]string{
 		LangSpanish: "**Herramientas y automatización**\n" +
 			"/shell <comando> — Ejecutar comando shell\n" +
 			"/dir [ruta] — Ver o cambiar directorio de trabajo\n" +
+			"/tree [ruta] — Explorar archivos en el directorio actual\n" +
 			"/cron [add|list|del|...] — Tareas programadas\n" +
 			"/commands [add|del] — Comandos personalizados\n" +
 			"/alias [add|del] — Alias de comandos\n" +
@@ -2957,6 +2978,13 @@ var messages = map[MsgKey]map[Language]string{
 		LangJapanese:           "エージェントの作業ディレクトリを表示/変更、引数: <パス>",
 		LangSpanish:            "Ver o cambiar el directorio de trabajo del agente, arg: <ruta>",
 	},
+	MsgBuiltinCmdTree: {
+		LangEnglish:            "Browse files in the current work directory, arg: [path]",
+		LangChinese:            "浏览当前工作目录下的文件，参数: [路径]",
+		LangTraditionalChinese: "瀏覽目前工作目錄下的檔案，參數: [路徑]",
+		LangJapanese:           "現在の作業ディレクトリ配下を閲覧、引数: [パス]",
+		LangSpanish:            "Explorar archivos bajo el directorio actual, arg: [ruta]",
+	},
 	MsgDirChanged: {
 		LangEnglish:            "✅ Work directory changed to: `%s`\nThe next session will start in this directory.",
 		LangChinese:            "✅ 工作目录已切换为: `%s`\n下次会话将在此目录下启动。",
@@ -2991,6 +3019,76 @@ var messages = map[MsgKey]map[Language]string{
 		LangTraditionalChinese: "❌ 目錄不存在: `%s`",
 		LangJapanese:           "❌ ディレクトリが存在しません: `%s`",
 		LangSpanish:            "❌ El directorio no existe: `%s`",
+	},
+	MsgTreeHeader: {
+		LangEnglish:            "🌲 Project tree\nRoot: `%s`\nCurrent: `%s`",
+		LangChinese:            "🌲 项目目录树\n根目录: `%s`\n当前位置: `%s`",
+		LangTraditionalChinese: "🌲 專案目錄樹\n根目錄: `%s`\n目前位置: `%s`",
+		LangJapanese:           "🌲 プロジェクトツリー\nルート: `%s`\n現在地: `%s`",
+		LangSpanish:            "🌲 Árbol del proyecto\nRaíz: `%s`\nActual: `%s`",
+	},
+	MsgTreeUsage: {
+		LangEnglish:            "Usage: `/tree [path]`\nUse buttons in Telegram to navigate folders and select files.",
+		LangChinese:            "用法: `/tree [路径]`\n在 Telegram 中可配合按钮浏览目录并选择文件。",
+		LangTraditionalChinese: "用法: `/tree [路徑]`\n在 Telegram 中可搭配按鈕瀏覽目錄並選擇檔案。",
+		LangJapanese:           "使い方: `/tree [パス]`\nTelegram ではボタンでフォルダ移動とファイル選択ができます。",
+		LangSpanish:            "Uso: `/tree [ruta]`\nEn Telegram puedes navegar carpetas y elegir archivos con botones.",
+	},
+	MsgTreeNotSupported: {
+		LangEnglish:            "This agent does not expose a work directory for file browsing.",
+		LangChinese:            "当前 Agent 未暴露可浏览的工作目录。",
+		LangTraditionalChinese: "當前 Agent 未暴露可瀏覽的工作目錄。",
+		LangJapanese:           "このエージェントは閲覧可能な作業ディレクトリを公開していません。",
+		LangSpanish:            "Este agente no expone un directorio de trabajo para explorar archivos.",
+	},
+	MsgTreeInvalidPath: {
+		LangEnglish:            "❌ Path does not exist: `%s`",
+		LangChinese:            "❌ 路径不存在: `%s`",
+		LangTraditionalChinese: "❌ 路徑不存在: `%s`",
+		LangJapanese:           "❌ パスが存在しません: `%s`",
+		LangSpanish:            "❌ La ruta no existe: `%s`",
+	},
+	MsgTreeOutsideRoot: {
+		LangEnglish:            "❌ Path must stay inside the current work directory: `%s`",
+		LangChinese:            "❌ 路径必须位于当前工作目录内: `%s`",
+		LangTraditionalChinese: "❌ 路徑必須位於目前工作目錄內: `%s`",
+		LangJapanese:           "❌ パスは現在の作業ディレクトリ内にある必要があります: `%s`",
+		LangSpanish:            "❌ La ruta debe permanecer dentro del directorio actual: `%s`",
+	},
+	MsgTreeEmpty: {
+		LangEnglish:            "This directory is empty.",
+		LangChinese:            "当前目录为空。",
+		LangTraditionalChinese: "目前目錄為空。",
+		LangJapanese:           "このディレクトリは空です。",
+		LangSpanish:            "Este directorio está vacío.",
+	},
+	MsgTreePage: {
+		LangEnglish:            "Page %d/%d",
+		LangChinese:            "第 %d/%d 页",
+		LangTraditionalChinese: "第 %d/%d 頁",
+		LangJapanese:           "%d/%d ページ",
+		LangSpanish:            "Página %d/%d",
+	},
+	MsgTreeHint: {
+		LangEnglish:            "Directories open in place. Selecting a file returns its path.",
+		LangChinese:            "目录会原地展开，选择文件后会返回文件路径。",
+		LangTraditionalChinese: "目錄會原地展開，選擇檔案後會回傳檔案路徑。",
+		LangJapanese:           "ディレクトリはその場で開き、ファイル選択時はパスを返します。",
+		LangSpanish:            "Los directorios se abren en el mismo mensaje y al elegir un archivo se devuelve la ruta.",
+	},
+	MsgTreeSelected: {
+		LangEnglish:            "📄 Selected file: `%s`\nPath: `%s`",
+		LangChinese:            "📄 已选择文件: `%s`\n路径: `%s`",
+		LangTraditionalChinese: "📄 已選擇檔案: `%s`\n路徑: `%s`",
+		LangJapanese:           "📄 選択したファイル: `%s`\nパス: `%s`",
+		LangSpanish:            "📄 Archivo seleccionado: `%s`\nRuta: `%s`",
+	},
+	MsgTreeButtonUp: {
+		LangEnglish:            "⬆ Up",
+		LangChinese:            "⬆ 返回上级",
+		LangTraditionalChinese: "⬆ 返回上層",
+		LangJapanese:           "⬆ 上へ",
+		LangSpanish:            "⬆ Subir",
 	},
 
 	// Multi-workspace messages

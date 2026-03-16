@@ -178,6 +178,8 @@ type Engine struct {
 	// Interactive agent session management
 	interactiveMu     sync.Mutex
 	interactiveStates map[string]*interactiveState // key = sessionKey
+	treeMu            sync.Mutex
+	treeStates        map[string]*treeBrowseState // key = sessionKey
 
 	quietMu sync.RWMutex
 	quiet   bool // when true, suppress thinking and tool progress messages globally
@@ -213,6 +215,19 @@ type deleteModeState struct {
 	result      string
 }
 
+type treeBrowseState struct {
+	rootDir    string
+	currentDir string
+	page       int
+	entries    []treeBrowseEntry
+}
+
+type treeBrowseEntry struct {
+	name  string
+	path  string
+	isDir bool
+}
+
 // pendingPermission represents a permission request waiting for user response.
 type pendingPermission struct {
 	RequestID       string
@@ -246,6 +261,7 @@ func NewEngine(name string, ag Agent, platforms []Platform, sessionStorePath str
 		skills:            NewSkillRegistry(),
 		aliases:           make(map[string]string),
 		interactiveStates: make(map[string]*interactiveState),
+		treeStates:        make(map[string]*treeBrowseState),
 		startedAt:         time.Now(),
 		streamPreview:     DefaultStreamPreviewCfg(),
 		eventIdleTimeout:  defaultEventIdleTimeout,
@@ -1897,6 +1913,7 @@ var builtinCommands = []struct {
 	{[]string{"search", "find"}, "search"},
 	{[]string{"shell", "sh", "exec", "run"}, "shell"},
 	{[]string{"dir", "cd", "chdir", "workdir"}, "dir"},
+	{[]string{"tree", "browse", "files"}, "tree"},
 	{[]string{"tts"}, "tts"},
 	{[]string{"workspace", "ws"}, "workspace"},
 }
@@ -2039,6 +2056,8 @@ func (e *Engine) handleCommand(p Platform, msg *Message, raw string) bool {
 		e.cmdShell(p, msg, raw)
 	case "dir":
 		e.cmdDir(p, msg, args)
+	case "tree":
+		e.cmdTree(p, msg, args)
 	case "tts":
 		e.cmdTTS(p, msg, args)
 	case "workspace":
@@ -2491,6 +2510,395 @@ func (e *Engine) cmdDir(p Platform, msg *Message, args []string) {
 	sessions.Save()
 
 	e.reply(p, msg.ReplyCtx, e.i18n.Tf(MsgDirChanged, newDir))
+}
+
+const treeBrowsePageSize = 8
+
+func (e *Engine) cmdTree(p Platform, msg *Message, args []string) {
+	agent, _, _, err := e.commandContext(p, msg)
+	if err != nil {
+		e.reply(p, msg.ReplyCtx, e.i18n.Tf(MsgWsResolutionError, err))
+		return
+	}
+
+	switcher, ok := agent.(WorkDirSwitcher)
+	if !ok {
+		e.reply(p, msg.ReplyCtx, e.i18n.T(MsgTreeNotSupported))
+		return
+	}
+
+	rootDir := switcher.GetWorkDir()
+	if rootDir == "" {
+		rootDir, _ = os.Getwd()
+	}
+	rootDir, err = filepath.Abs(rootDir)
+	if err != nil {
+		e.reply(p, msg.ReplyCtx, e.i18n.Tf(MsgTreeInvalidPath, rootDir))
+		return
+	}
+	if info, statErr := os.Stat(rootDir); statErr != nil || !info.IsDir() {
+		e.reply(p, msg.ReplyCtx, e.i18n.Tf(MsgTreeInvalidPath, rootDir))
+		return
+	}
+
+	if len(args) == 1 {
+		switch strings.ToLower(strings.TrimSpace(args[0])) {
+		case "help", "-h", "--help":
+			e.reply(p, msg.ReplyCtx, e.i18n.T(MsgTreeUsage))
+			return
+		}
+	}
+
+	state, err := e.prepareTreeBrowseState(msg.SessionKey, rootDir)
+	if err != nil {
+		e.reply(p, msg.ReplyCtx, e.i18n.Tf(MsgTreeInvalidPath, rootDir))
+		return
+	}
+
+	if len(args) > 0 {
+		handled, actionErr := e.handleTreeBrowseAction(state, args)
+		if actionErr != nil {
+			e.reply(p, msg.ReplyCtx, actionErr.Error())
+			return
+		}
+		if handled {
+			if len(args) >= 2 && strings.EqualFold(args[0], "pick") {
+				entry, pickErr := e.treeEntryOnCurrentPage(state, args[1])
+				if pickErr != nil {
+					e.reply(p, msg.ReplyCtx, e.i18n.T(MsgTreeUsage))
+					return
+				}
+				e.sendTreeSelection(p, msg.ReplyCtx, state.rootDir, entry.path)
+				return
+			}
+			e.storeTreeBrowseState(msg.SessionKey, state)
+			e.replyWithButtons(p, msg.ReplyCtx, e.renderTreeBrowseText(state), e.renderTreeBrowseButtons(state))
+			return
+		}
+
+		targetPath, targetInfo, resolveErr := resolveTreeTarget(rootDir, strings.Join(args, " "))
+		if resolveErr != nil {
+			if strings.Contains(resolveErr.Error(), "outside root") {
+				e.reply(p, msg.ReplyCtx, e.i18n.Tf(MsgTreeOutsideRoot, rootDir))
+				return
+			}
+			e.reply(p, msg.ReplyCtx, e.i18n.Tf(MsgTreeInvalidPath, strings.Join(args, " ")))
+			return
+		}
+
+		if targetInfo.IsDir() {
+			state.currentDir = targetPath
+			state.page = 0
+			if err := e.reloadTreeBrowseState(state); err != nil {
+				e.reply(p, msg.ReplyCtx, e.i18n.Tf(MsgTreeInvalidPath, targetPath))
+				return
+			}
+			e.storeTreeBrowseState(msg.SessionKey, state)
+			e.replyWithButtons(p, msg.ReplyCtx, e.renderTreeBrowseText(state), e.renderTreeBrowseButtons(state))
+			return
+		}
+
+		e.sendTreeSelection(p, msg.ReplyCtx, rootDir, targetPath)
+		return
+	}
+
+	e.storeTreeBrowseState(msg.SessionKey, state)
+	e.replyWithButtons(p, msg.ReplyCtx, e.renderTreeBrowseText(state), e.renderTreeBrowseButtons(state))
+}
+
+func (e *Engine) prepareTreeBrowseState(sessionKey, rootDir string) (*treeBrowseState, error) {
+	e.treeMu.Lock()
+	defer e.treeMu.Unlock()
+
+	if state, ok := e.treeStates[sessionKey]; ok && state != nil && state.rootDir == rootDir {
+		if err := e.reloadTreeBrowseState(state); err != nil {
+			return nil, err
+		}
+		return state, nil
+	}
+
+	state := &treeBrowseState{
+		rootDir:    rootDir,
+		currentDir: rootDir,
+		page:       0,
+	}
+	if err := e.reloadTreeBrowseState(state); err != nil {
+		return nil, err
+	}
+	e.treeStates[sessionKey] = state
+	return state, nil
+}
+
+func (e *Engine) storeTreeBrowseState(sessionKey string, state *treeBrowseState) {
+	e.treeMu.Lock()
+	defer e.treeMu.Unlock()
+	e.treeStates[sessionKey] = state
+}
+
+func (e *Engine) reloadTreeBrowseState(state *treeBrowseState) error {
+	entries, err := readTreeBrowseEntries(state.currentDir)
+	if err != nil {
+		return err
+	}
+	state.entries = entries
+	pageCount := treePageCount(len(entries))
+	if state.page >= pageCount {
+		state.page = pageCount - 1
+	}
+	if state.page < 0 {
+		state.page = 0
+	}
+	return nil
+}
+
+func readTreeBrowseEntries(dir string) ([]treeBrowseEntry, error) {
+	items, err := os.ReadDir(dir)
+	if err != nil {
+		return nil, err
+	}
+
+	entries := make([]treeBrowseEntry, 0, len(items))
+	for _, item := range items {
+		entries = append(entries, treeBrowseEntry{
+			name:  item.Name(),
+			path:  filepath.Join(dir, item.Name()),
+			isDir: item.IsDir(),
+		})
+	}
+
+	sort.Slice(entries, func(i, j int) bool {
+		if entries[i].isDir != entries[j].isDir {
+			return entries[i].isDir
+		}
+		return strings.ToLower(entries[i].name) < strings.ToLower(entries[j].name)
+	})
+	return entries, nil
+}
+
+func (e *Engine) handleTreeBrowseAction(state *treeBrowseState, args []string) (bool, error) {
+	switch strings.ToLower(strings.TrimSpace(args[0])) {
+	case "open":
+		if len(args) < 2 {
+			return true, fmt.Errorf("%s", e.i18n.T(MsgTreeUsage))
+		}
+		entry, err := e.treeEntryOnCurrentPage(state, args[1])
+		if err != nil {
+			return true, fmt.Errorf("%s", e.i18n.T(MsgTreeUsage))
+		}
+		if !entry.isDir {
+			return false, nil
+		}
+		state.currentDir = entry.path
+		state.page = 0
+		return true, e.reloadTreeBrowseState(state)
+	case "pick":
+		if len(args) < 2 {
+			return true, fmt.Errorf("%s", e.i18n.T(MsgTreeUsage))
+		}
+		entry, err := e.treeEntryOnCurrentPage(state, args[1])
+		if err != nil {
+			return true, fmt.Errorf("%s", e.i18n.T(MsgTreeUsage))
+		}
+		if entry.isDir {
+			state.currentDir = entry.path
+			state.page = 0
+			return true, e.reloadTreeBrowseState(state)
+		}
+		return true, nil
+	case "up":
+		if state.currentDir == state.rootDir {
+			return true, nil
+		}
+		parent := filepath.Dir(state.currentDir)
+		if !isWithinTreeRoot(state.rootDir, parent) {
+			parent = state.rootDir
+		}
+		state.currentDir = parent
+		state.page = 0
+		return true, e.reloadTreeBrowseState(state)
+	case "prev":
+		if state.page > 0 {
+			state.page--
+		}
+		return true, nil
+	case "next":
+		maxPage := treePageCount(len(state.entries)) - 1
+		if state.page < maxPage {
+			state.page++
+		}
+		return true, nil
+	default:
+		return false, nil
+	}
+}
+
+func (e *Engine) treeEntryOnCurrentPage(state *treeBrowseState, rawIndex string) (treeBrowseEntry, error) {
+	idx, err := strconv.Atoi(strings.TrimSpace(rawIndex))
+	if err != nil || idx < 1 {
+		return treeBrowseEntry{}, fmt.Errorf("invalid index")
+	}
+	visible, _ := treeBrowsePageEntries(state)
+	if idx > len(visible) {
+		return treeBrowseEntry{}, fmt.Errorf("invalid index")
+	}
+	return visible[idx-1], nil
+}
+
+func resolveTreeTarget(rootDir, raw string) (string, os.FileInfo, error) {
+	cleaned := filepath.Clean(strings.TrimSpace(raw))
+	if !filepath.IsAbs(cleaned) {
+		cleaned = filepath.Join(rootDir, cleaned)
+	}
+	cleaned, err := filepath.Abs(cleaned)
+	if err != nil {
+		return "", nil, err
+	}
+	if !isWithinTreeRoot(rootDir, cleaned) {
+		return "", nil, fmt.Errorf("outside root")
+	}
+	info, err := os.Stat(cleaned)
+	if err != nil {
+		return "", nil, err
+	}
+	return cleaned, info, nil
+}
+
+func isWithinTreeRoot(rootDir, target string) bool {
+	rel, err := filepath.Rel(rootDir, target)
+	if err != nil {
+		return false
+	}
+	if rel == "." {
+		return true
+	}
+	return rel != ".." && !strings.HasPrefix(rel, ".."+string(os.PathSeparator))
+}
+
+func treePageCount(total int) int {
+	if total == 0 {
+		return 1
+	}
+	return (total + treeBrowsePageSize - 1) / treeBrowsePageSize
+}
+
+func treeBrowsePageEntries(state *treeBrowseState) ([]treeBrowseEntry, int) {
+	pageCount := treePageCount(len(state.entries))
+	if state.page >= pageCount {
+		state.page = pageCount - 1
+	}
+	if state.page < 0 {
+		state.page = 0
+	}
+
+	start := state.page * treeBrowsePageSize
+	if start > len(state.entries) {
+		start = len(state.entries)
+	}
+	end := start + treeBrowsePageSize
+	if end > len(state.entries) {
+		end = len(state.entries)
+	}
+	return state.entries[start:end], pageCount
+}
+
+func (e *Engine) renderTreeBrowseText(state *treeBrowseState) string {
+	currentRel := "."
+	if rel, err := filepath.Rel(state.rootDir, state.currentDir); err == nil && rel != "." {
+		currentRel = filepath.ToSlash(rel)
+	}
+
+	visible, pageCount := treeBrowsePageEntries(state)
+
+	var sb strings.Builder
+	sb.WriteString(e.i18n.Tf(MsgTreeHeader, state.rootDir, currentRel))
+	sb.WriteString("\n\n")
+
+	if len(visible) == 0 {
+		sb.WriteString(e.i18n.T(MsgTreeEmpty))
+	} else {
+		for i, entry := range visible {
+			icon := "📄"
+			name := entry.name
+			if entry.isDir {
+				icon = "📁"
+				name += "/"
+			}
+			sb.WriteString(fmt.Sprintf("%d. %s `%s`\n", i+1, icon, name))
+		}
+	}
+
+	sb.WriteString("\n")
+	sb.WriteString(e.i18n.Tf(MsgTreePage, state.page+1, pageCount))
+	sb.WriteString("\n")
+	sb.WriteString(e.i18n.T(MsgTreeHint))
+	return sb.String()
+}
+
+func (e *Engine) renderTreeBrowseButtons(state *treeBrowseState) [][]ButtonOption {
+	visible, pageCount := treeBrowsePageEntries(state)
+	rows := make([][]ButtonOption, 0, len(visible)+2)
+
+	if state.currentDir != state.rootDir {
+		rows = append(rows, []ButtonOption{{Text: e.i18n.T(MsgTreeButtonUp), Data: "cmd:/tree up"}})
+	}
+
+	for i, entry := range visible {
+		label := trimTreeButtonLabel(entry.name)
+		if entry.isDir {
+			rows = append(rows, []ButtonOption{{
+				Text: "📁 " + label,
+				Data: fmt.Sprintf("cmd:/tree open %d", i+1),
+			}})
+			continue
+		}
+		rows = append(rows, []ButtonOption{{
+			Text: "📄 " + label,
+			Data: fmt.Sprintf("cmd:/tree pick %d", i+1),
+		}})
+	}
+
+	if pageCount > 1 {
+		row := make([]ButtonOption, 0, 2)
+		if state.page > 0 {
+			row = append(row, ButtonOption{Text: e.i18n.T(MsgCardPrev), Data: "cmd:/tree prev"})
+		}
+		if state.page+1 < pageCount {
+			row = append(row, ButtonOption{Text: e.i18n.T(MsgCardNext), Data: "cmd:/tree next"})
+		}
+		if len(row) > 0 {
+			rows = append(rows, row)
+		}
+	}
+
+	return rows
+}
+
+func trimTreeButtonLabel(label string) string {
+	const maxRunes = 28
+	runes := []rune(label)
+	if len(runes) <= maxRunes {
+		return label
+	}
+	return string(runes[:maxRunes-1]) + "…"
+}
+
+func (e *Engine) sendTreeSelection(p Platform, replyCtx any, rootDir, path string) {
+	relPath, _ := filepath.Rel(rootDir, path)
+	relPath = filepath.ToSlash(relPath)
+	if relPath == "" {
+		relPath = filepath.Base(path)
+	}
+
+	if fs, ok := p.(FileSender); ok {
+		caption := relPath
+		if err := fs.SendFile(e.ctx, replyCtx, path, caption); err == nil {
+			return
+		} else {
+			slog.Warn("tree: send file failed, falling back to path reply", "platform", p.Name(), "path", path, "error", err)
+		}
+	}
+
+	e.reply(p, replyCtx, e.i18n.Tf(MsgTreeSelected, relPath, path))
 }
 
 // cmdSearch searches sessions by name or message content.
@@ -3324,7 +3732,7 @@ func langDisplayName(lang Language) string {
 
 func (e *Engine) cmdHelp(p Platform, msg *Message) {
 	if !supportsCards(p) {
-		e.reply(p, msg.ReplyCtx, e.i18n.T(MsgHelp))
+		e.reply(p, msg.ReplyCtx, e.helpTextWithNativeCommands(e.i18n.T(MsgHelp)))
 		return
 	}
 	e.replyWithCard(p, msg.ReplyCtx, e.renderHelpCard())
@@ -3379,6 +3787,7 @@ func helpCardGroups() []helpCardGroup {
 			titleKey: MsgHelpToolsSection,
 			items: []helpCardItem{
 				{command: "/shell", action: "cmd:/shell"},
+				{command: "/tree", action: "cmd:/tree"},
 				{command: "/cron", action: "nav:/cron"},
 				{command: "/heartbeat", action: "nav:/heartbeat"},
 				{command: "/commands", action: "nav:/commands"},
@@ -3439,7 +3848,7 @@ func (e *Engine) renderHelpGroupCard(groupKey string) *Card {
 		return strings.Trim(sectionTitle(key), "* ")
 	}
 	commandText := func(command string) string {
-		return "**" + command + "**  " + e.i18n.T(MsgKey(strings.TrimPrefix(command, "/")))
+		return "**" + e.helpCommandDisplay(command) + "**  " + e.i18n.T(MsgKey(strings.TrimPrefix(command, "/")))
 	}
 
 	groups := helpCardGroups()
@@ -3471,6 +3880,37 @@ func (e *Engine) renderHelpGroupCard(groupKey string) *Card {
 	return cb.Build()
 }
 
+func (e *Engine) nativeCompressCommandName() string {
+	compressor, ok := e.agent.(ContextCompressor)
+	if !ok {
+		return ""
+	}
+
+	cmd := strings.ToLower(strings.TrimSpace(compressor.CompressCommand()))
+	cmd = strings.TrimPrefix(cmd, "/")
+	if cmd == "" || cmd == "compress" {
+		return ""
+	}
+	return cmd
+}
+
+func (e *Engine) helpCommandDisplay(command string) string {
+	if command != "/compress" {
+		return command
+	}
+	if native := e.nativeCompressCommandName(); native != "" {
+		return command + " /" + native
+	}
+	return command
+}
+
+func (e *Engine) helpTextWithNativeCommands(text string) string {
+	if native := e.nativeCompressCommandName(); native != "" {
+		return strings.ReplaceAll(text, "/compress", "/compress /"+native)
+	}
+	return text
+}
+
 // GetAllCommands returns all available commands for bot menu registration.
 // It includes built-in commands (with localized descriptions) and custom commands.
 func (e *Engine) GetAllCommands() []BotCommandInfo {
@@ -3497,6 +3937,13 @@ func (e *Engine) GetAllCommands() []BotCommandInfo {
 		commands = append(commands, BotCommandInfo{
 			Command:     primaryName,
 			Description: e.i18n.T(MsgKey(primaryName)),
+		})
+	}
+	if native := e.nativeCompressCommandName(); native != "" && !e.disabledCmds["compress"] && !seenCmds[native] {
+		seenCmds[native] = true
+		commands = append(commands, BotCommandInfo{
+			Command:     native,
+			Description: e.i18n.T(MsgBuiltinCmdCompress),
 		})
 	}
 
