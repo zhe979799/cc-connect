@@ -75,6 +75,21 @@ func (p *stubPlatformEngine) getSent() []string {
 	return cp
 }
 
+func waitForSentCount(t *testing.T, p *stubPlatformEngine, want int) []string {
+	t.Helper()
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		got := p.getSent()
+		if len(got) >= want {
+			return got
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	got := p.getSent()
+	t.Fatalf("sent messages = %d, want at least %d, got=%v", len(got), want, got)
+	return nil
+}
+
 type stubInlineButtonPlatform struct {
 	stubPlatformEngine
 	buttonContent string
@@ -194,6 +209,72 @@ type stubCompressAgent struct {
 
 func (a *stubCompressAgent) CompressCommand() string {
 	return a.command
+}
+
+type recoverableCompressSession struct {
+	sessionID string
+	alive     bool
+	events    chan Event
+	mu        sync.Mutex
+	sent      []string
+}
+
+func newRecoverableCompressSession(id string) *recoverableCompressSession {
+	return &recoverableCompressSession{
+		sessionID: id,
+		alive:     true,
+		events:    make(chan Event, 4),
+	}
+}
+
+func (s *recoverableCompressSession) Send(prompt string, _ []ImageAttachment, _ []FileAttachment) error {
+	s.mu.Lock()
+	s.sent = append(s.sent, prompt)
+	s.mu.Unlock()
+
+	if prompt == "/compact" {
+		select {
+		case s.events <- Event{Type: EventResult}:
+		default:
+		}
+	}
+	return nil
+}
+
+func (s *recoverableCompressSession) RespondPermission(_ string, _ PermissionResult) error {
+	return nil
+}
+func (s *recoverableCompressSession) Events() <-chan Event     { return s.events }
+func (s *recoverableCompressSession) CurrentSessionID() string { return s.sessionID }
+func (s *recoverableCompressSession) Alive() bool              { return s.alive }
+func (s *recoverableCompressSession) Close() error {
+	s.alive = false
+	close(s.events)
+	return nil
+}
+
+func (s *recoverableCompressSession) sentPrompts() []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	cp := make([]string, len(s.sent))
+	copy(cp, s.sent)
+	return cp
+}
+
+type recoverableCompressAgent struct {
+	stubCompressAgent
+	session       *recoverableCompressSession
+	startedWithID string
+}
+
+func (a *recoverableCompressAgent) Name() string { return "recoverable-compress" }
+
+func (a *recoverableCompressAgent) StartSession(_ context.Context, sessionID string) (AgentSession, error) {
+	a.startedWithID = sessionID
+	if a.session != nil {
+		return a.session, nil
+	}
+	return newRecoverableCompressSession(sessionID), nil
 }
 
 type stubListAgent struct {
@@ -970,6 +1051,33 @@ func TestGetAllCommands_IncludesNativeCompressCommand(t *testing.T) {
 	}
 	if !foundCompact {
 		t.Fatalf("commands = %+v, want native compact command", commands)
+	}
+}
+
+func TestCmdCompress_RestoresPersistedAgentSession(t *testing.T) {
+	p := &stubPlatformEngine{n: "plain"}
+	agent := &recoverableCompressAgent{
+		stubCompressAgent: stubCompressAgent{command: "/compact"},
+		session:           newRecoverableCompressSession("thread-1"),
+	}
+	e := NewEngine("test", agent, []Platform{p}, "", LangEnglish)
+	msg := &Message{SessionKey: "test:user1", ReplyCtx: "ctx"}
+	e.sessions.GetOrCreateActive(msg.SessionKey).SetAgentSessionID("thread-1", agent.Name())
+
+	e.cmdCompress(p, msg)
+
+	got := waitForSentCount(t, p, 2)
+	if agent.startedWithID != "thread-1" {
+		t.Fatalf("StartSession called with %q, want %q", agent.startedWithID, "thread-1")
+	}
+	if prompts := agent.session.sentPrompts(); len(prompts) != 1 || prompts[0] != "/compact" {
+		t.Fatalf("sent prompts = %v, want [/compact]", prompts)
+	}
+	if got[0] != e.i18n.T(MsgCompressing) {
+		t.Fatalf("first reply = %q, want %q", got[0], e.i18n.T(MsgCompressing))
+	}
+	if got[1] != e.i18n.T(MsgCompressDone) {
+		t.Fatalf("second reply = %q, want %q", got[1], e.i18n.T(MsgCompressDone))
 	}
 }
 

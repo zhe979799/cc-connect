@@ -4336,16 +4336,35 @@ func (e *Engine) cmdCompress(p Platform, msg *Message) {
 		return
 	}
 
-	e.interactiveMu.Lock()
-	state, hasState := e.interactiveStates[msg.SessionKey]
-	e.interactiveMu.Unlock()
-
-	if !hasState || state == nil || state.agentSession == nil || !state.agentSession.Alive() {
-		e.reply(p, msg.ReplyCtx, e.i18n.T(MsgCompressNoSession))
+	agent, sessions, interactiveKey, err := e.commandContext(p, msg)
+	if err != nil {
+		e.reply(p, msg.ReplyCtx, e.i18n.Tf(MsgWsResolutionError, err))
 		return
 	}
 
-	session := e.sessions.GetOrCreateActive(msg.SessionKey)
+	e.interactiveMu.Lock()
+	state, hasState := e.interactiveStates[interactiveKey]
+	e.interactiveMu.Unlock()
+
+	if !hasState || state == nil || state.agentSession == nil || !state.agentSession.Alive() {
+		session := sessions.GetOrCreateActive(msg.SessionKey)
+		if session.GetAgentSessionID() == "" {
+			e.reply(p, msg.ReplyCtx, e.i18n.T(MsgCompressNoSession))
+			return
+		}
+
+		var agentOverride Agent
+		if agent != e.agent {
+			agentOverride = agent
+		}
+		state = e.getOrCreateInteractiveStateWith(interactiveKey, p, msg.ReplyCtx, session, agentOverride)
+		if state == nil || state.agentSession == nil || !state.agentSession.Alive() {
+			e.reply(p, msg.ReplyCtx, e.i18n.T(MsgCompressNoSession))
+			return
+		}
+	}
+
+	session := sessions.GetOrCreateActive(msg.SessionKey)
 	if !session.TryLock() {
 		e.reply(p, msg.ReplyCtx, e.i18n.T(MsgPreviousProcessing))
 		return
@@ -4367,12 +4386,12 @@ func (e *Engine) cmdCompress(p Platform, msg *Message) {
 		if err := state.agentSession.Send(cmd, nil, nil); err != nil {
 			e.reply(p, msg.ReplyCtx, fmt.Sprintf(e.i18n.T(MsgError), err))
 			if !state.agentSession.Alive() {
-				e.cleanupInteractiveState(msg.SessionKey)
+				e.cleanupInteractiveState(interactiveKey)
 			}
 			return
 		}
 
-		e.processCompressEvents(state, msg.SessionKey, p, msg.ReplyCtx)
+		e.processCompressEvents(state, interactiveKey, p, msg.ReplyCtx)
 	}()
 }
 
