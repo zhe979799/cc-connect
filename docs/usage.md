@@ -29,12 +29,16 @@ Each user gets an independent session with full conversation context. Manage ses
 |---------|-------------|
 | `/new [name]` | Start a new session |
 | `/list` | List all agent sessions for this project |
+| `/codex-session-list [page]` | List all local Codex sessions across projects |
+| `/codex-switch <number|id_prefix|name>` | Switch directly to a global Codex session |
 | `/switch <id>` | Switch to a different session |
 | `/current` | Show current session info |
 | `/history [n]` | Show last n messages (default 10) |
 | `/usage` | Show account/model quota usage (if supported) |
 | `/provider [...]` | Manage API providers |
 | `/model [alias]` | List available models or switch by alias |
+| `/dir [path]` | Show current work directory or switch it for the next session |
+| `/tree [path]` | Browse files under the current work directory |
 | `/allow <tool>` | Pre-allow a tool (next session) |
 | `/reasoning [level]` | View or switch reasoning effort (Codex) |
 | `/mode [name]` | View or switch permission mode |

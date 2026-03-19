@@ -303,6 +303,33 @@ func (a *stubListAgent) ListSessions(_ context.Context) ([]AgentSessionInfo, err
 	return a.sessions, nil
 }
 
+type stubGlobalListAgent struct {
+	stubListAgent
+	err error
+}
+
+func (a *stubGlobalListAgent) ListAllSessions(_ context.Context) ([]AgentSessionInfo, error) {
+	if a.err != nil {
+		return nil, a.err
+	}
+	return a.sessions, nil
+}
+
+type stubGlobalWorkDirAgent struct {
+	stubGlobalListAgent
+	workDir string
+}
+
+func (a *stubGlobalWorkDirAgent) Name() string { return "codex" }
+
+func (a *stubGlobalWorkDirAgent) SetWorkDir(dir string) {
+	a.workDir = dir
+}
+
+func (a *stubGlobalWorkDirAgent) GetWorkDir() string {
+	return a.workDir
+}
+
 type stubDeleteAgent struct {
 	stubListAgent
 	deleted []string
@@ -1596,6 +1623,110 @@ func TestCmdList_UsesLegacyTextOnPlatformWithoutCardSupport(t *testing.T) {
 	}
 }
 
+func TestCmdCodexSessionList_UnsupportedAgent(t *testing.T) {
+	p := &stubPlatformEngine{n: "plain"}
+	e := NewEngine("test", &stubAgent{}, []Platform{p}, "", LangEnglish)
+
+	e.handleCommand(p, &Message{SessionKey: "test:user1", ReplyCtx: "ctx"}, "/codex-session-list")
+
+	if len(p.sent) != 1 {
+		t.Fatalf("sent messages = %d, want 1", len(p.sent))
+	}
+	if !strings.Contains(p.sent[0], "does not support `/codex-session-list`") {
+		t.Fatalf("unexpected response: %q", p.sent[0])
+	}
+}
+
+func TestCmdCodexSessionList_Success(t *testing.T) {
+	p := &stubPlatformEngine{n: "plain"}
+	agent := &stubGlobalListAgent{
+		stubListAgent: stubListAgent{sessions: []AgentSessionInfo{
+			{ID: "session-1234567890", Summary: "Global session one", MessageCount: 3, ModifiedAt: time.Date(2024, 3, 1, 10, 30, 0, 0, time.UTC)},
+			{ID: "session-abcdefghij", Summary: "Global session two", MessageCount: 5, ModifiedAt: time.Date(2024, 3, 2, 9, 15, 0, 0, time.UTC)},
+		}},
+	}
+	e := NewEngine("test", agent, []Platform{p}, "", LangEnglish)
+
+	e.handleCommand(p, &Message{SessionKey: "test:user1", ReplyCtx: "ctx"}, "/codex-session-list")
+
+	if len(p.sent) != 1 {
+		t.Fatalf("sent messages = %d, want 1", len(p.sent))
+	}
+	if !strings.Contains(p.sent[0], "All Codex Sessions") {
+		t.Fatalf("expected title in output, got %q", p.sent[0])
+	}
+	if !strings.Contains(p.sent[0], "`session-abcd`") {
+		t.Fatalf("expected short session id in output, got %q", p.sent[0])
+	}
+	if !strings.Contains(p.sent[0], "Global session two") {
+		t.Fatalf("expected session summary in output, got %q", p.sent[0])
+	}
+	if !strings.Contains(p.sent[0], "`/codex-switch <number|id_prefix|name>`") {
+		t.Fatalf("expected diagnostic hint in output, got %q", p.sent[0])
+	}
+}
+
+func TestCmdCodexSwitch_UnsupportedAgent(t *testing.T) {
+	p := &stubPlatformEngine{n: "plain"}
+	e := NewEngine("test", &stubAgent{}, []Platform{p}, "", LangEnglish)
+
+	e.handleCommand(p, &Message{SessionKey: "test:user1", ReplyCtx: "ctx"}, "/codex-switch 1")
+
+	if len(p.sent) != 1 {
+		t.Fatalf("sent messages = %d, want 1", len(p.sent))
+	}
+	if !strings.Contains(p.sent[0], "does not support `/codex-switch`") {
+		t.Fatalf("unexpected response: %q", p.sent[0])
+	}
+}
+
+func TestCmdCodexSwitch_SuccessChangesWorkDir(t *testing.T) {
+	baseDir := t.TempDir()
+	originDir := filepath.Join(baseDir, "origin")
+	targetDir := filepath.Join(baseDir, "target")
+	if err := os.Mkdir(originDir, 0o755); err != nil {
+		t.Fatalf("mkdir origin: %v", err)
+	}
+	if err := os.Mkdir(targetDir, 0o755); err != nil {
+		t.Fatalf("mkdir target: %v", err)
+	}
+
+	p := &stubPlatformEngine{n: "plain"}
+	agent := &stubGlobalWorkDirAgent{
+		stubGlobalListAgent: stubGlobalListAgent{
+			stubListAgent: stubListAgent{sessions: []AgentSessionInfo{
+				{ID: "session-abcdefghij", Summary: "Global session two", MessageCount: 5, ModifiedAt: time.Date(2024, 3, 2, 9, 15, 0, 0, time.UTC), WorkDir: targetDir},
+			}},
+		},
+		workDir: originDir,
+	}
+	e := NewEngine("test", agent, []Platform{p}, "", LangEnglish)
+	msg := &Message{SessionKey: "test:user1", ReplyCtx: "ctx"}
+	session := e.sessions.GetOrCreateActive(msg.SessionKey)
+	session.AddHistory("user", "hello")
+
+	e.handleCommand(p, msg, "/codex-switch 1")
+
+	if len(p.sent) != 1 {
+		t.Fatalf("sent messages = %d, want 1", len(p.sent))
+	}
+	if agent.GetWorkDir() != targetDir {
+		t.Fatalf("workDir = %q, want %q", agent.GetWorkDir(), targetDir)
+	}
+	if got := session.GetAgentSessionID(); got != "session-abcdefghij" {
+		t.Fatalf("agent session id = %q, want %q", got, "session-abcdefghij")
+	}
+	if got := session.GetHistory(0); len(got) != 0 {
+		t.Fatalf("history len = %d, want 0", len(got))
+	}
+	if !strings.Contains(p.sent[0], "Switched to: Global session two") {
+		t.Fatalf("unexpected response: %q", p.sent[0])
+	}
+	if !strings.Contains(p.sent[0], targetDir) {
+		t.Fatalf("expected workdir hint in response, got %q", p.sent[0])
+	}
+}
+
 func TestCmdCurrent_UsesLegacyTextOnPlatformWithoutCardSupport(t *testing.T) {
 	p := &stubPlatformEngine{n: "plain"}
 	e := NewEngine("test", &stubAgent{}, []Platform{p}, "", LangEnglish)
@@ -2217,6 +2348,69 @@ func TestCmdDir_AliasCdStillWorks(t *testing.T) {
 
 	if agent.workDir != nextDir {
 		t.Fatalf("workDir = %q, want %q", agent.workDir, nextDir)
+	}
+}
+
+func TestCmdDir_MultiWorkspaceUpdatesBindingAndTargetSession(t *testing.T) {
+	p := &stubPlatformEngine{n: "plain"}
+	baseDir := t.TempDir()
+	originDir := filepath.Join(baseDir, "origin")
+	nextDir := filepath.Join(baseDir, "next")
+	if err := os.MkdirAll(originDir, 0o755); err != nil {
+		t.Fatalf("mkdir origin: %v", err)
+	}
+	if err := os.MkdirAll(nextDir, 0o755); err != nil {
+		t.Fatalf("mkdir next: %v", err)
+	}
+	originDir = normalizeWorkspacePath(originDir)
+	nextDir = normalizeWorkspacePath(nextDir)
+
+	e := NewEngine("test", &stubWorkDirAgent{workDir: baseDir}, []Platform{p}, "", LangEnglish)
+	e.SetMultiWorkspace(baseDir, filepath.Join(t.TempDir(), "bindings.json"))
+
+	channelID := "C123"
+	sessionKey := "slack:" + channelID + ":U1"
+	e.workspaceBindings.Bind("project:test", channelID, "chan", originDir)
+
+	originWS := e.workspacePool.GetOrCreate(originDir)
+	originWS.agent = &stubWorkDirAgent{workDir: originDir}
+	originWS.sessions = NewSessionManager("")
+
+	targetWS := e.workspacePool.GetOrCreate(nextDir)
+	targetWS.agent = &stubWorkDirAgent{workDir: nextDir}
+	targetWS.sessions = NewSessionManager("")
+
+	originInteractiveKey := originDir + ":" + sessionKey
+	targetInteractiveKey := nextDir + ":" + sessionKey
+	e.interactiveStates[originInteractiveKey] = &interactiveState{agentSession: &stubAgentSession{}}
+	e.interactiveStates[targetInteractiveKey] = &interactiveState{agentSession: &stubAgentSession{}}
+
+	targetSession := targetWS.sessions.GetOrCreateActive(sessionKey)
+	targetSession.SetAgentSessionID("existing-target", "stub")
+	targetSession.AddHistory("user", "hello")
+
+	e.cmdDir(p, &Message{SessionKey: sessionKey, ReplyCtx: "ctx"}, []string{"../next"})
+
+	if b := e.workspaceBindings.Lookup("project:test", channelID); b == nil || b.Workspace != nextDir {
+		if b == nil {
+			t.Fatal("expected workspace binding after /dir switch")
+		}
+		t.Fatalf("binding workspace = %q, want %q", b.Workspace, nextDir)
+	}
+	if got := targetSession.GetAgentSessionID(); got != "" {
+		t.Fatalf("target session id = %q, want cleared", got)
+	}
+	if got := targetSession.GetHistory(0); len(got) != 0 {
+		t.Fatalf("target session history len = %d, want 0", len(got))
+	}
+	if _, ok := e.interactiveStates[originInteractiveKey]; ok {
+		t.Fatal("expected origin interactive state to be cleaned up")
+	}
+	if _, ok := e.interactiveStates[targetInteractiveKey]; ok {
+		t.Fatal("expected target interactive state to be cleaned up")
+	}
+	if len(p.sent) != 1 || !strings.Contains(p.sent[0], nextDir) {
+		t.Fatalf("sent = %v, want directory changed message for %q", p.sent, nextDir)
 	}
 }
 

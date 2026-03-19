@@ -332,6 +332,12 @@ type SessionDeleter interface {
 	DeleteSession(ctx context.Context, sessionID string) error
 }
 
+// GlobalSessionLister is an optional interface for agents that can list
+// sessions across all local workspaces/projects instead of only the current one.
+type GlobalSessionLister interface {
+	ListAllSessions(ctx context.Context) ([]AgentSessionInfo, error)
+}
+
 // WorkDirSwitcher is an optional interface for agents that support runtime
 // work directory switching. The change takes effect on the next session start;
 // the current running session is terminated automatically by the engine.

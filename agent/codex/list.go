@@ -22,6 +22,15 @@ func listCodexSessions(workDir string) ([]core.AgentSessionInfo, error) {
 		absWorkDir = workDir
 	}
 
+	return scanCodexSessions(absWorkDir, true)
+}
+
+// listAllCodexSessions scans ~/.codex/sessions/ without filtering by cwd.
+func listAllCodexSessions() ([]core.AgentSessionInfo, error) {
+	return scanCodexSessions("", false)
+}
+
+func scanCodexSessions(filterCwd string, filterByCwd bool) ([]core.AgentSessionInfo, error) {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
 		return nil, err
@@ -50,7 +59,7 @@ func listCodexSessions(workDir string) ([]core.AgentSessionInfo, error) {
 
 	var sessions []core.AgentSessionInfo
 	for _, f := range files {
-		info := parseCodexSessionFile(f, absWorkDir)
+		info := parseCodexSessionFile(f, filterCwd, filterByCwd)
 		if info != nil {
 			patchSessionSource(info.ID)
 			sessions = append(sessions, *info)
@@ -66,7 +75,7 @@ func listCodexSessions(workDir string) ([]core.AgentSessionInfo, error) {
 
 // parseCodexSessionFile reads a Codex JSONL transcript.
 // Returns nil if the session's cwd doesn't match filterCwd.
-func parseCodexSessionFile(path, filterCwd string) *core.AgentSessionInfo {
+func parseCodexSessionFile(path, filterCwd string, filterByCwd bool) *core.AgentSessionInfo {
 	f, err := os.Open(path)
 	if err != nil {
 		return nil
@@ -140,7 +149,7 @@ func parseCodexSessionFile(path, filterCwd string) *core.AgentSessionInfo {
 	}
 
 	// Filter by cwd
-	if filterCwd != "" && sessionCwd != "" && sessionCwd != filterCwd {
+	if filterByCwd && filterCwd != "" && sessionCwd != "" && sessionCwd != filterCwd {
 		return nil
 	}
 
@@ -157,6 +166,7 @@ func parseCodexSessionFile(path, filterCwd string) *core.AgentSessionInfo {
 		Summary:      summary,
 		MessageCount: msgCount,
 		ModifiedAt:   stat.ModTime(),
+		WorkDir:      sessionCwd,
 	}
 }
 

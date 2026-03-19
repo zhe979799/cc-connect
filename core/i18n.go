@@ -119,80 +119,90 @@ func (i *I18n) SetLang(lang Language) {
 type MsgKey string
 
 const (
-	MsgStarting             MsgKey = "starting"
-	MsgThinking             MsgKey = "thinking"
-	MsgTool                 MsgKey = "tool"
-	MsgExecutionStopped     MsgKey = "execution_stopped"
-	MsgNoExecution          MsgKey = "no_execution"
-	MsgPreviousProcessing   MsgKey = "previous_processing"
-	MsgMessageQueued        MsgKey = "message_queued"
-	MsgNoToolsAllowed       MsgKey = "no_tools_allowed"
-	MsgCurrentTools         MsgKey = "current_tools"
-	MsgCurrentSession       MsgKey = "current_session"
-	MsgToolAuthNotSupported MsgKey = "tool_auth_not_supported"
-	MsgToolAllowFailed      MsgKey = "tool_allow_failed"
-	MsgToolAllowedNew       MsgKey = "tool_allowed_new"
-	MsgError                     MsgKey = "error"
-	MsgFailedToStartAgentSession MsgKey = "failed_to_start_agent_session"
-	MsgFailedToDeleteSession    MsgKey = "failed_to_delete_session"
-	MsgEmptyResponse           MsgKey = "empty_response"
-	MsgPermissionPrompt     MsgKey = "permission_prompt"
-	MsgPermissionAllowed    MsgKey = "permission_allowed"
-	MsgPermissionApproveAll MsgKey = "permission_approve_all"
-	MsgPermissionDenied     MsgKey = "permission_denied_msg"
-	MsgPermissionHint       MsgKey = "permission_hint"
-	MsgQuietOn              MsgKey = "quiet_on"
-	MsgQuietOff             MsgKey = "quiet_off"
-	MsgQuietGlobalOn        MsgKey = "quiet_global_on"
-	MsgQuietGlobalOff       MsgKey = "quiet_global_off"
-	MsgModeChanged          MsgKey = "mode_changed"
-	MsgModeNotSupported     MsgKey = "mode_not_supported"
-	MsgSessionRestarting    MsgKey = "session_restarting"
-	MsgSessionNotStarted    MsgKey = "session_not_started"
-	MsgLangChanged          MsgKey = "lang_changed"
-	MsgLangInvalid          MsgKey = "lang_invalid"
-	MsgLangCurrent          MsgKey = "lang_current"
-	MsgUnknownCommand       MsgKey = "unknown_command"
-	MsgHelp                 MsgKey = "message_help" // change from "help", which is used now for builtin command help
-	MsgHelpTitle            MsgKey = "help_title"
-	MsgHelpSessionSection   MsgKey = "help_session_section"
-	MsgHelpAgentSection     MsgKey = "help_agent_section"
-	MsgHelpToolsSection     MsgKey = "help_tools_section"
-	MsgHelpSystemSection    MsgKey = "help_system_section"
-	MsgHelpTip              MsgKey = "help_tip"
-	MsgListTitle            MsgKey = "list_title"
-	MsgListTitlePaged       MsgKey = "list_title_paged"
-	MsgListEmpty            MsgKey = "list_empty"
-	MsgListMore             MsgKey = "list_more"
-	MsgListPageHint         MsgKey = "list_page_hint"
-	MsgListSwitchHint       MsgKey = "list_switch_hint"
-	MsgListError            MsgKey = "list_error"
-	MsgHistoryEmpty         MsgKey = "history_empty"
-	MsgNameUsage            MsgKey = "name_usage"
-	MsgNameSet              MsgKey = "name_set"
-	MsgNameNoSession        MsgKey = "name_no_session"
-	MsgProviderNotSupported MsgKey = "provider_not_supported"
-	MsgProviderNone         MsgKey = "provider_none"
-	MsgProviderCurrent      MsgKey = "provider_current"
-	MsgProviderListTitle    MsgKey = "provider_list_title"
-	MsgProviderListEmpty    MsgKey = "provider_list_empty"
-	MsgProviderSwitchHint   MsgKey = "provider_switch_hint"
-	MsgProviderNotFound     MsgKey = "provider_not_found"
-	MsgProviderSwitched     MsgKey = "provider_switched"
-	MsgProviderCleared      MsgKey = "provider_cleared"
-	MsgProviderAdded        MsgKey = "provider_added"
-	MsgProviderAddUsage     MsgKey = "provider_add_usage"
-	MsgProviderAddFailed    MsgKey = "provider_add_failed"
-	MsgProviderRemoved      MsgKey = "provider_removed"
-	MsgProviderRemoveFailed MsgKey = "provider_remove_failed"
+	MsgStarting                     MsgKey = "starting"
+	MsgThinking                     MsgKey = "thinking"
+	MsgTool                         MsgKey = "tool"
+	MsgExecutionStopped             MsgKey = "execution_stopped"
+	MsgNoExecution                  MsgKey = "no_execution"
+	MsgPreviousProcessing           MsgKey = "previous_processing"
+	MsgMessageQueued                MsgKey = "message_queued"
+	MsgNoToolsAllowed               MsgKey = "no_tools_allowed"
+	MsgCurrentTools                 MsgKey = "current_tools"
+	MsgCurrentSession               MsgKey = "current_session"
+	MsgToolAuthNotSupported         MsgKey = "tool_auth_not_supported"
+	MsgToolAllowFailed              MsgKey = "tool_allow_failed"
+	MsgToolAllowedNew               MsgKey = "tool_allowed_new"
+	MsgError                        MsgKey = "error"
+	MsgFailedToStartAgentSession    MsgKey = "failed_to_start_agent_session"
+	MsgFailedToDeleteSession        MsgKey = "failed_to_delete_session"
+	MsgEmptyResponse                MsgKey = "empty_response"
+	MsgPermissionPrompt             MsgKey = "permission_prompt"
+	MsgPermissionAllowed            MsgKey = "permission_allowed"
+	MsgPermissionApproveAll         MsgKey = "permission_approve_all"
+	MsgPermissionDenied             MsgKey = "permission_denied_msg"
+	MsgPermissionHint               MsgKey = "permission_hint"
+	MsgQuietOn                      MsgKey = "quiet_on"
+	MsgQuietOff                     MsgKey = "quiet_off"
+	MsgQuietGlobalOn                MsgKey = "quiet_global_on"
+	MsgQuietGlobalOff               MsgKey = "quiet_global_off"
+	MsgModeChanged                  MsgKey = "mode_changed"
+	MsgModeNotSupported             MsgKey = "mode_not_supported"
+	MsgSessionRestarting            MsgKey = "session_restarting"
+	MsgSessionNotStarted            MsgKey = "session_not_started"
+	MsgLangChanged                  MsgKey = "lang_changed"
+	MsgLangInvalid                  MsgKey = "lang_invalid"
+	MsgLangCurrent                  MsgKey = "lang_current"
+	MsgUnknownCommand               MsgKey = "unknown_command"
+	MsgHelp                         MsgKey = "message_help" // change from "help", which is used now for builtin command help
+	MsgHelpTitle                    MsgKey = "help_title"
+	MsgHelpSessionSection           MsgKey = "help_session_section"
+	MsgHelpAgentSection             MsgKey = "help_agent_section"
+	MsgHelpToolsSection             MsgKey = "help_tools_section"
+	MsgHelpSystemSection            MsgKey = "help_system_section"
+	MsgHelpTip                      MsgKey = "help_tip"
+	MsgListTitle                    MsgKey = "list_title"
+	MsgListTitlePaged               MsgKey = "list_title_paged"
+	MsgListEmpty                    MsgKey = "list_empty"
+	MsgListMore                     MsgKey = "list_more"
+	MsgListPageHint                 MsgKey = "list_page_hint"
+	MsgListSwitchHint               MsgKey = "list_switch_hint"
+	MsgListError                    MsgKey = "list_error"
+	MsgCodexSessionListTitle        MsgKey = "codex_session_list_title"
+	MsgCodexSessionListTitlePaged   MsgKey = "codex_session_list_title_paged"
+	MsgCodexSessionListEmpty        MsgKey = "codex_session_list_empty"
+	MsgCodexSessionListPageHint     MsgKey = "codex_session_list_page_hint"
+	MsgCodexSessionListHint         MsgKey = "codex_session_list_hint"
+	MsgCodexSessionListError        MsgKey = "codex_session_list_error"
+	MsgCodexSessionListNotSupported MsgKey = "codex_session_list_not_supported"
+	MsgCodexSwitchUsage             MsgKey = "codex_switch_usage"
+	MsgCodexSwitchDirHint           MsgKey = "codex_switch_dir_hint"
+	MsgCodexSwitchNotSupported      MsgKey = "codex_switch_not_supported"
+	MsgHistoryEmpty                 MsgKey = "history_empty"
+	MsgNameUsage                    MsgKey = "name_usage"
+	MsgNameSet                      MsgKey = "name_set"
+	MsgNameNoSession                MsgKey = "name_no_session"
+	MsgProviderNotSupported         MsgKey = "provider_not_supported"
+	MsgProviderNone                 MsgKey = "provider_none"
+	MsgProviderCurrent              MsgKey = "provider_current"
+	MsgProviderListTitle            MsgKey = "provider_list_title"
+	MsgProviderListEmpty            MsgKey = "provider_list_empty"
+	MsgProviderSwitchHint           MsgKey = "provider_switch_hint"
+	MsgProviderNotFound             MsgKey = "provider_not_found"
+	MsgProviderSwitched             MsgKey = "provider_switched"
+	MsgProviderCleared              MsgKey = "provider_cleared"
+	MsgProviderAdded                MsgKey = "provider_added"
+	MsgProviderAddUsage             MsgKey = "provider_add_usage"
+	MsgProviderAddFailed            MsgKey = "provider_add_failed"
+	MsgProviderRemoved              MsgKey = "provider_removed"
+	MsgProviderRemoveFailed         MsgKey = "provider_remove_failed"
 
-	MsgVoiceNotEnabled       MsgKey = "voice_not_enabled"
+	MsgVoiceNotEnabled               MsgKey = "voice_not_enabled"
 	MsgVoiceUsingPlatformRecognition MsgKey = "voice_using_platform_recognition"
-	MsgVoiceNoFFmpeg         MsgKey = "voice_no_ffmpeg"
-	MsgVoiceTranscribing     MsgKey = "voice_transcribing"
-	MsgVoiceTranscribed      MsgKey = "voice_transcribed"
-	MsgVoiceTranscribeFailed MsgKey = "voice_transcribe_failed"
-	MsgVoiceEmpty            MsgKey = "voice_empty"
+	MsgVoiceNoFFmpeg                 MsgKey = "voice_no_ffmpeg"
+	MsgVoiceTranscribing             MsgKey = "voice_transcribing"
+	MsgVoiceTranscribed              MsgKey = "voice_transcribed"
+	MsgVoiceTranscribeFailed         MsgKey = "voice_transcribe_failed"
+	MsgVoiceEmpty                    MsgKey = "voice_empty"
 
 	MsgTTSNotEnabled MsgKey = "tts_not_enabled"
 	MsgTTSStatus     MsgKey = "tts_status"
@@ -434,40 +444,42 @@ const (
 	MsgSearchResult   MsgKey = "search_result"
 	MsgSearchHint     MsgKey = "search_hint"
 
-	MsgBuiltinCmdNew       MsgKey = "new"
-	MsgBuiltinCmdList      MsgKey = "list"
-	MsgBuiltinCmdSearch    MsgKey = "search"
-	MsgBuiltinCmdSwitch    MsgKey = "switch"
-	MsgBuiltinCmdDelete    MsgKey = "delete"
-	MsgBuiltinCmdName      MsgKey = "name"
-	MsgBuiltinCmdCurrent   MsgKey = "current"
-	MsgBuiltinCmdHistory   MsgKey = "history"
-	MsgBuiltinCmdProvider  MsgKey = "provider"
-	MsgBuiltinCmdMemory    MsgKey = "memory"
-	MsgBuiltinCmdAllow     MsgKey = "allow"
-	MsgBuiltinCmdModel     MsgKey = "model"
-	MsgBuiltinCmdReasoning MsgKey = "reasoning"
-	MsgBuiltinCmdMode      MsgKey = "mode"
-	MsgBuiltinCmdLang      MsgKey = "lang"
-	MsgBuiltinCmdQuiet     MsgKey = "quiet"
-	MsgBuiltinCmdCompress  MsgKey = "compress"
-	MsgBuiltinCmdStop      MsgKey = "stop"
-	MsgBuiltinCmdCron      MsgKey = "cron"
-	MsgBuiltinCmdCommands  MsgKey = "commands"
-	MsgBuiltinCmdAlias     MsgKey = "alias"
-	MsgBuiltinCmdSkills    MsgKey = "skills"
-	MsgBuiltinCmdConfig    MsgKey = "config"
-	MsgBuiltinCmdDoctor    MsgKey = "doctor"
-	MsgBuiltinCmdUpgrade   MsgKey = "upgrade"
-	MsgBuiltinCmdRestart   MsgKey = "restart"
-	MsgBuiltinCmdStatus    MsgKey = "status"
-	MsgBuiltinCmdUsage     MsgKey = "usage"
-	MsgBuiltinCmdVersion   MsgKey = "version"
-	MsgBuiltinCmdHelp      MsgKey = "help"
-	MsgBuiltinCmdBind      MsgKey = "bind"
-	MsgBuiltinCmdShell     MsgKey = "shell"
-	MsgBuiltinCmdDir       MsgKey = "dir"
-	MsgBuiltinCmdTree      MsgKey = "tree"
+	MsgBuiltinCmdNew              MsgKey = "new"
+	MsgBuiltinCmdList             MsgKey = "list"
+	MsgBuiltinCmdCodexSessionList MsgKey = "codex-session-list"
+	MsgBuiltinCmdCodexSwitch      MsgKey = "codex-switch"
+	MsgBuiltinCmdSearch           MsgKey = "search"
+	MsgBuiltinCmdSwitch           MsgKey = "switch"
+	MsgBuiltinCmdDelete           MsgKey = "delete"
+	MsgBuiltinCmdName             MsgKey = "name"
+	MsgBuiltinCmdCurrent          MsgKey = "current"
+	MsgBuiltinCmdHistory          MsgKey = "history"
+	MsgBuiltinCmdProvider         MsgKey = "provider"
+	MsgBuiltinCmdMemory           MsgKey = "memory"
+	MsgBuiltinCmdAllow            MsgKey = "allow"
+	MsgBuiltinCmdModel            MsgKey = "model"
+	MsgBuiltinCmdReasoning        MsgKey = "reasoning"
+	MsgBuiltinCmdMode             MsgKey = "mode"
+	MsgBuiltinCmdLang             MsgKey = "lang"
+	MsgBuiltinCmdQuiet            MsgKey = "quiet"
+	MsgBuiltinCmdCompress         MsgKey = "compress"
+	MsgBuiltinCmdStop             MsgKey = "stop"
+	MsgBuiltinCmdCron             MsgKey = "cron"
+	MsgBuiltinCmdCommands         MsgKey = "commands"
+	MsgBuiltinCmdAlias            MsgKey = "alias"
+	MsgBuiltinCmdSkills           MsgKey = "skills"
+	MsgBuiltinCmdConfig           MsgKey = "config"
+	MsgBuiltinCmdDoctor           MsgKey = "doctor"
+	MsgBuiltinCmdUpgrade          MsgKey = "upgrade"
+	MsgBuiltinCmdRestart          MsgKey = "restart"
+	MsgBuiltinCmdStatus           MsgKey = "status"
+	MsgBuiltinCmdUsage            MsgKey = "usage"
+	MsgBuiltinCmdVersion          MsgKey = "version"
+	MsgBuiltinCmdHelp             MsgKey = "help"
+	MsgBuiltinCmdBind             MsgKey = "bind"
+	MsgBuiltinCmdShell            MsgKey = "shell"
+	MsgBuiltinCmdDir              MsgKey = "dir"
+	MsgBuiltinCmdTree             MsgKey = "tree"
 
 	MsgDirChanged       MsgKey = "dir_changed"
 	MsgDirCurrent       MsgKey = "dir_current"
@@ -743,6 +755,8 @@ var messages = map[MsgKey]map[Language]string{
 		LangEnglish: "📖 Available Commands\n\n" +
 			"/new [name]\n  Start a new session\n\n" +
 			"/list\n  List agent sessions\n\n" +
+			"/codex-session-list [page]\n  List all local Codex sessions\n\n" +
+			"/codex-switch <number|id_prefix|name>\n  Switch to a global Codex session\n\n" +
 			"/search <keyword>\n  Search sessions by name or ID\n\n" +
 			"/switch <number>\n  Resume a session by its list number\n\n" +
 			"/delete <number>|1,2,3|3-7|1,3-5,8\n  Delete sessions by list number(s)\n\n" +
@@ -786,6 +800,8 @@ var messages = map[MsgKey]map[Language]string{
 		LangChinese: "📖 可用命令\n\n" +
 			"/new [名称]\n  创建新会话\n\n" +
 			"/list\n  列出 Agent 会话列表\n\n" +
+			"/codex-session-list [页码]\n  列出本机全部 Codex 会话\n\n" +
+			"/codex-switch <序号|ID前缀|名称>\n  直接切换到某个 Codex 会话\n\n" +
 			"/search <关键词>\n  搜索会话名称或 ID\n\n" +
 			"/switch <序号>\n  按列表序号切换会话\n\n" +
 			"/delete <序号>|1,2,3|3-7|1,3-5,8\n  按列表序号批量/单个删除会话\n\n" +
@@ -829,6 +845,8 @@ var messages = map[MsgKey]map[Language]string{
 		LangTraditionalChinese: "📖 可用命令\n\n" +
 			"/new [名稱]\n  建立新會話\n\n" +
 			"/list\n  列出 Agent 會話列表\n\n" +
+			"/codex-session-list [頁碼]\n  列出本機全部 Codex 會話\n\n" +
+			"/codex-switch <序號|ID前綴|名稱>\n  直接切換到某個 Codex 會話\n\n" +
 			"/search <關鍵詞>\n  搜尋會話名稱或 ID\n\n" +
 			"/switch <序號>\n  按列表序號切換會話\n\n" +
 			"/delete <序號>|1,2,3|3-7|1,3-5,8\n  按列表序號批量/單筆刪除會話\n\n" +
@@ -872,6 +890,8 @@ var messages = map[MsgKey]map[Language]string{
 		LangJapanese: "📖 利用可能なコマンド\n\n" +
 			"/new [名前]\n  新しいセッションを開始\n\n" +
 			"/list\n  エージェントセッション一覧\n\n" +
+			"/codex-session-list [page]\n  ローカルの Codex セッションをすべて表示\n\n" +
+			"/codex-switch <番号|ID接頭辞|名前>\n  グローバルな Codex セッションへ切り替え\n\n" +
 			"/switch <番号>\n  リスト番号でセッションを切り替え\n\n" +
 			"/delete <番号>|1,2,3|3-7|1,3-5,8\n  リスト番号でセッションを単体/複数削除\n\n" +
 			"/name [番号] <名前>\n  セッションに名前を付ける\n\n" +
@@ -914,6 +934,8 @@ var messages = map[MsgKey]map[Language]string{
 		LangSpanish: "📖 Comandos disponibles\n\n" +
 			"/new [nombre]\n  Iniciar una nueva sesión\n\n" +
 			"/list\n  Listar sesiones del agente\n\n" +
+			"/codex-session-list [página]\n  Listar todas las sesiones locales de Codex\n\n" +
+			"/codex-switch <número|prefijo_id|nombre>\n  Cambiar a una sesión global de Codex\n\n" +
 			"/switch <número>\n  Reanudar sesión por su número en la lista\n\n" +
 			"/delete <número>|1,2,3|3-7|1,3-5,8\n  Eliminar una o varias sesiones por número de lista\n\n" +
 			"/name [número] <texto>\n  Nombrar una sesión para fácil identificación\n\n" +
@@ -965,6 +987,8 @@ var messages = map[MsgKey]map[Language]string{
 		LangEnglish: "**Session Management**\n" +
 			"/new [name] — Start a new session\n" +
 			"/list — List agent sessions\n" +
+			"/codex-session-list [page] — List all local Codex sessions\n" +
+			"/codex-switch <number|id_prefix|name> — Switch to a global Codex session\n" +
 			"/search <keyword> — Search sessions\n" +
 			"/switch <number> — Resume a session\n" +
 			"/delete <number>|1,2,3|3-7|1,3-5,8 — Delete session(s)\n" +
@@ -974,6 +998,8 @@ var messages = map[MsgKey]map[Language]string{
 		LangChinese: "**会话管理**\n" +
 			"/new [名称] — 创建新会话\n" +
 			"/list — 列出会话列表\n" +
+			"/codex-session-list [页码] — 列出本机全部 Codex 会话\n" +
+			"/codex-switch <序号|ID前缀|名称> — 直接切换到某个 Codex 会话\n" +
 			"/search <关键词> — 搜索会话\n" +
 			"/switch <序号> — 切换会话\n" +
 			"/delete <序号>|1,2,3|3-7|1,3-5,8 — 删除会话\n" +
@@ -983,6 +1009,8 @@ var messages = map[MsgKey]map[Language]string{
 		LangTraditionalChinese: "**會話管理**\n" +
 			"/new [名稱] — 建立新會話\n" +
 			"/list — 列出會話列表\n" +
+			"/codex-session-list [頁碼] — 列出本機全部 Codex 會話\n" +
+			"/codex-switch <序號|ID前綴|名稱> — 直接切換到某個 Codex 會話\n" +
 			"/search <關鍵詞> — 搜尋會話\n" +
 			"/switch <序號> — 切換會話\n" +
 			"/delete <序號>|1,2,3|3-7|1,3-5,8 — 刪除會話\n" +
@@ -992,6 +1020,8 @@ var messages = map[MsgKey]map[Language]string{
 		LangJapanese: "**セッション管理**\n" +
 			"/new [名前] — 新しいセッションを開始\n" +
 			"/list — セッション一覧\n" +
+			"/codex-session-list [page] — ローカルの Codex セッションをすべて表示\n" +
+			"/codex-switch <番号|ID接頭辞|名前> — グローバルな Codex セッションへ切り替え\n" +
 			"/search <キーワード> — セッション検索\n" +
 			"/switch <番号> — セッション切り替え\n" +
 			"/delete <番号>|1,2,3|3-7|1,3-5,8 — セッション削除\n" +
@@ -1001,6 +1031,8 @@ var messages = map[MsgKey]map[Language]string{
 		LangSpanish: "**Gestión de sesiones**\n" +
 			"/new [nombre] — Iniciar nueva sesión\n" +
 			"/list — Listar sesiones\n" +
+			"/codex-session-list [página] — Listar todas las sesiones locales de Codex\n" +
+			"/codex-switch <número|prefijo_id|nombre> — Cambiar a una sesión global de Codex\n" +
 			"/search <keyword> — Buscar sesiones\n" +
 			"/switch <número> — Reanudar sesión\n" +
 			"/delete <número>|1,2,3|3-7|1,3-5,8 — Eliminar sesión(es)\n" +
@@ -1199,6 +1231,76 @@ var messages = map[MsgKey]map[Language]string{
 		LangTraditionalChinese: "❌ 取得會話列表失敗: %v",
 		LangJapanese:           "❌ セッション一覧の取得に失敗しました: %v",
 		LangSpanish:            "❌ Error al listar sesiones: %v",
+	},
+	MsgCodexSessionListTitle: {
+		LangEnglish:            "**All Codex Sessions** (%d)\n\n",
+		LangChinese:            "**全部 Codex 会话** (%d)\n\n",
+		LangTraditionalChinese: "**全部 Codex 會話** (%d)\n\n",
+		LangJapanese:           "**すべての Codex セッション** (%d)\n\n",
+		LangSpanish:            "**Todas las sesiones de Codex** (%d)\n\n",
+	},
+	MsgCodexSessionListTitlePaged: {
+		LangEnglish:            "**All Codex Sessions** (%d) · Page %d/%d\n\n",
+		LangChinese:            "**全部 Codex 会话** (%d) · 第 %d/%d 页\n\n",
+		LangTraditionalChinese: "**全部 Codex 會話** (%d) · 第 %d/%d 頁\n\n",
+		LangJapanese:           "**すべての Codex セッション** (%d) · %d/%d ページ\n\n",
+		LangSpanish:            "**Todas las sesiones de Codex** (%d) · Página %d/%d\n\n",
+	},
+	MsgCodexSessionListEmpty: {
+		LangEnglish:            "No local Codex sessions found.",
+		LangChinese:            "未找到本机 Codex 会话。",
+		LangTraditionalChinese: "未找到本機 Codex 會話。",
+		LangJapanese:           "ローカルの Codex セッションが見つかりません。",
+		LangSpanish:            "No se encontraron sesiones locales de Codex.",
+	},
+	MsgCodexSessionListPageHint: {
+		LangEnglish:            "\n\nPage %d/%d \n\n`/codex-session-list <page>` for more\n",
+		LangChinese:            "\n\n第 %d/%d 页 \n\n`/codex-session-list <页码>` 翻页\n",
+		LangTraditionalChinese: "\n\n第 %d/%d 頁 \n\n`/codex-session-list <頁碼>` 翻頁\n",
+		LangJapanese:           "\n\n%d/%d ページ \n\n`/codex-session-list <page>` で移動\n",
+		LangSpanish:            "\n\nPágina %d/%d \n\n`/codex-session-list <página>` para más\n",
+	},
+	MsgCodexSessionListHint: {
+		LangEnglish:            "\nUse `/codex-switch <number|id_prefix|name>` to jump directly into one of these sessions.",
+		LangChinese:            "\n使用 `/codex-switch <序号|ID前缀|名称>` 可直接切到这些会话。",
+		LangTraditionalChinese: "\n使用 `/codex-switch <序號|ID前綴|名稱>` 可直接切到這些會話。",
+		LangJapanese:           "\n`/codex-switch <番号|ID接頭辞|名前>` でこれらのセッションへ直接切り替えられます。",
+		LangSpanish:            "\nUsa `/codex-switch <número|prefijo_id|nombre>` para saltar directamente a una de estas sesiones.",
+	},
+	MsgCodexSessionListError: {
+		LangEnglish:            "❌ Failed to list Codex sessions: %v",
+		LangChinese:            "❌ 获取 Codex 会话列表失败: %v",
+		LangTraditionalChinese: "❌ 取得 Codex 會話列表失敗: %v",
+		LangJapanese:           "❌ Codex セッション一覧の取得に失敗しました: %v",
+		LangSpanish:            "❌ Error al listar sesiones de Codex: %v",
+	},
+	MsgCodexSessionListNotSupported: {
+		LangEnglish:            "❌ Current agent does not support `/codex-session-list`.",
+		LangChinese:            "❌ 当前 Agent 不支持 `/codex-session-list`。",
+		LangTraditionalChinese: "❌ 當前 Agent 不支援 `/codex-session-list`。",
+		LangJapanese:           "❌ 現在のエージェントは `/codex-session-list` をサポートしていません。",
+		LangSpanish:            "❌ El agente actual no admite `/codex-session-list`.",
+	},
+	MsgCodexSwitchUsage: {
+		LangEnglish:            "Usage: /codex-switch <number | id_prefix | name>",
+		LangChinese:            "用法：/codex-switch <序号 | ID前缀 | 名称>",
+		LangTraditionalChinese: "用法：/codex-switch <序號 | ID前綴 | 名稱>",
+		LangJapanese:           "使い方: /codex-switch <番号 | ID接頭辞 | 名前>",
+		LangSpanish:            "Uso: /codex-switch <número | prefijo_id | nombre>",
+	},
+	MsgCodexSwitchDirHint: {
+		LangEnglish:            "\nwork_dir → `%s`",
+		LangChinese:            "\nwork_dir 已切到 `%s`",
+		LangTraditionalChinese: "\nwork_dir 已切到 `%s`",
+		LangJapanese:           "\nwork_dir を `%s` に切り替えました",
+		LangSpanish:            "\nwork_dir cambiado a `%s`",
+	},
+	MsgCodexSwitchNotSupported: {
+		LangEnglish:            "❌ Current agent does not support `/codex-switch`.",
+		LangChinese:            "❌ 当前 Agent 不支持 `/codex-switch`。",
+		LangTraditionalChinese: "❌ 當前 Agent 不支援 `/codex-switch`。",
+		LangJapanese:           "❌ 現在のエージェントは `/codex-switch` をサポートしていません。",
+		LangSpanish:            "❌ El agente actual no admite `/codex-switch`.",
 	},
 	MsgHistoryEmpty: {
 		LangEnglish:            "No history in current session.",
@@ -2888,6 +2990,20 @@ var messages = map[MsgKey]map[Language]string{
 		LangTraditionalChinese: "列出 Agent 會話列表",
 		LangJapanese:           "エージェントセッション一覧",
 		LangSpanish:            "Listar sesiones del agente",
+	},
+	MsgBuiltinCmdCodexSessionList: {
+		LangEnglish:            "List all local Codex sessions, arg: [page]",
+		LangChinese:            "列出本机全部 Codex 会话，参数: [页码]",
+		LangTraditionalChinese: "列出本機全部 Codex 會話，參數: [頁碼]",
+		LangJapanese:           "ローカルの Codex セッションをすべて表示、引数: [page]",
+		LangSpanish:            "Listar todas las sesiones locales de Codex, arg: [página]",
+	},
+	MsgBuiltinCmdCodexSwitch: {
+		LangEnglish:            "Switch to a global Codex session, arg: <number|id_prefix|name>",
+		LangChinese:            "切换到全局 Codex 会话，参数: <序号|ID前缀|名称>",
+		LangTraditionalChinese: "切換到全域 Codex 會話，參數: <序號|ID前綴|名稱>",
+		LangJapanese:           "グローバルな Codex セッションへ切り替え、引数: <番号|ID接頭辞|名前>",
+		LangSpanish:            "Cambiar a una sesión global de Codex, arg: <número|prefijo_id|nombre>",
 	},
 	MsgBuiltinCmdSearch: {
 		LangEnglish:            "Search sessions by name or ID, arg: <keyword>",

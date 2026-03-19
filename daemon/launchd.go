@@ -174,6 +174,14 @@ func buildPlist(cfg Config) string {
 		<string>%s</string>
 		<key>CC_LOG_MAX_SIZE</key>
 		<string>%d</string>
+		<key>HTTP_PROXY</key>
+		<string></string>
+		<key>HTTPS_PROXY</key>
+		<string></string>
+		<key>ALL_PROXY</key>
+		<string></string>
+		<key>NO_PROXY</key>
+		<string></string>
 		<key>PATH</key>
 		<string>%s</string>
 	</dict>

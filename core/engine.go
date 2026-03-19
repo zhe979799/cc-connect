@@ -2343,6 +2343,8 @@ var builtinCommands = []struct {
 }{
 	{[]string{"new"}, "new"},
 	{[]string{"list", "sessions"}, "list"},
+	{[]string{"codex-session-list", "codex-sessions"}, "codex-session-list"},
+	{[]string{"codex-switch"}, "codex-switch"},
 	{[]string{"switch"}, "switch"},
 	{[]string{"name", "rename"}, "name"},
 	{[]string{"current"}, "current"},
@@ -2497,6 +2499,10 @@ func (e *Engine) handleCommand(p Platform, msg *Message, raw string) bool {
 		e.cmdNew(p, msg, args)
 	case "list":
 		e.cmdList(p, msg, args)
+	case "codex-session-list":
+		e.cmdCodexSessionList(p, msg, args)
+	case "codex-switch":
+		e.cmdCodexSwitch(p, msg, args)
 	case "switch":
 		e.cmdSwitch(p, msg, args)
 	case "name":
@@ -2790,19 +2796,7 @@ func (e *Engine) cmdList(p Platform, msg *Message, args []string) {
 			if s.ID == activeAgentID {
 				marker = "▶"
 			}
-			displayName := sessions.GetSessionName(s.ID)
-			if displayName != "" {
-				displayName = "📌 " + displayName
-			} else {
-				displayName = strings.ReplaceAll(s.Summary, "\n", " ")
-				displayName = strings.Join(strings.Fields(displayName), " ")
-				if displayName == "" {
-					displayName = "(empty)"
-				}
-				if len([]rune(displayName)) > 40 {
-					displayName = string([]rune(displayName)[:40]) + "…"
-				}
-			}
+			displayName := sessionListDisplayName(s.Summary, sessions.GetSessionName(s.ID))
 			sb.WriteString(fmt.Sprintf("%s **%d.** %s · **%d** msgs · %s\n",
 				marker, i+1, displayName, s.MessageCount, s.ModifiedAt.Format("01-02 15:04")))
 		}
@@ -2826,6 +2820,166 @@ func (e *Engine) cmdList(p Platform, msg *Message, args []string) {
 		return
 	}
 	e.replyWithCard(p, msg.ReplyCtx, card)
+}
+
+func (e *Engine) cmdCodexSessionList(p Platform, msg *Message, args []string) {
+	agent, sessions, _, err := e.commandContext(p, msg)
+	if err != nil {
+		e.reply(p, msg.ReplyCtx, e.i18n.Tf(MsgWsResolutionError, err))
+		return
+	}
+
+	lister, ok := agent.(GlobalSessionLister)
+	if !ok {
+		e.reply(p, msg.ReplyCtx, e.i18n.T(MsgCodexSessionListNotSupported))
+		return
+	}
+
+	agentSessions, err := lister.ListAllSessions(e.ctx)
+	if err != nil {
+		e.reply(p, msg.ReplyCtx, fmt.Sprintf(e.i18n.T(MsgCodexSessionListError), err))
+		return
+	}
+	if len(agentSessions) == 0 {
+		e.reply(p, msg.ReplyCtx, e.i18n.T(MsgCodexSessionListEmpty))
+		return
+	}
+
+	total := len(agentSessions)
+	totalPages := (total + listPageSize - 1) / listPageSize
+
+	page := 1
+	if len(args) > 0 {
+		if n, err := strconv.Atoi(args[0]); err == nil && n > 0 {
+			page = n
+		}
+	}
+	if page > totalPages {
+		page = totalPages
+	}
+
+	start := (page - 1) * listPageSize
+	end := start + listPageSize
+	if end > total {
+		end = total
+	}
+
+	activeSession := sessions.GetOrCreateActive(msg.SessionKey)
+	activeAgentID := activeSession.GetAgentSessionID()
+
+	var sb strings.Builder
+	if totalPages > 1 {
+		sb.WriteString(fmt.Sprintf(e.i18n.T(MsgCodexSessionListTitlePaged), total, page, totalPages))
+	} else {
+		sb.WriteString(fmt.Sprintf(e.i18n.T(MsgCodexSessionListTitle), total))
+	}
+	for i := start; i < end; i++ {
+		s := agentSessions[i]
+		marker := "◻"
+		if s.ID == activeAgentID {
+			marker = "▶"
+		}
+		displayName := sessionListDisplayName(s.Summary, sessions.GetSessionName(s.ID))
+		shortID := s.ID
+		if len(shortID) > 12 {
+			shortID = shortID[:12]
+		}
+		sb.WriteString(fmt.Sprintf("%s **%d.** %s · **%d** msgs · %s · `%s`\n",
+			marker, i+1, displayName, s.MessageCount, s.ModifiedAt.Format("01-02 15:04"), shortID))
+	}
+	if totalPages > 1 {
+		sb.WriteString(fmt.Sprintf(e.i18n.T(MsgCodexSessionListPageHint), page, totalPages))
+	}
+	sb.WriteString(e.i18n.T(MsgCodexSessionListHint))
+	e.reply(p, msg.ReplyCtx, sb.String())
+}
+
+func (e *Engine) cmdCodexSwitch(p Platform, msg *Message, args []string) {
+	if len(args) == 0 {
+		e.reply(p, msg.ReplyCtx, e.i18n.T(MsgCodexSwitchUsage))
+		return
+	}
+	query := strings.TrimSpace(strings.Join(args, " "))
+
+	agent, sessions, interactiveKey, err := e.commandContext(p, msg)
+	if err != nil {
+		e.reply(p, msg.ReplyCtx, e.i18n.Tf(MsgWsResolutionError, err))
+		return
+	}
+
+	lister, ok := agent.(GlobalSessionLister)
+	if !ok {
+		e.reply(p, msg.ReplyCtx, e.i18n.T(MsgCodexSwitchNotSupported))
+		return
+	}
+
+	agentSessions, err := lister.ListAllSessions(e.ctx)
+	if err != nil {
+		e.reply(p, msg.ReplyCtx, fmt.Sprintf(e.i18n.T(MsgCodexSessionListError), err))
+		return
+	}
+
+	matched := e.matchSession(agentSessions, sessions, query)
+	if matched == nil {
+		e.reply(p, msg.ReplyCtx, fmt.Sprintf(e.i18n.T(MsgSwitchNoMatch), query))
+		return
+	}
+
+	targetAgent := agent
+	targetSessions := sessions
+	targetInteractiveKey := interactiveKey
+	workDirChanged := ""
+
+	if matched.WorkDir != "" {
+		if nextAgent, nextSessions, nextInteractiveKey, changed := e.codexSwitchTargetContext(p, msg, matched.WorkDir, interactiveKey); nextAgent != nil {
+			targetAgent = nextAgent
+			targetSessions = nextSessions
+			targetInteractiveKey = nextInteractiveKey
+			workDirChanged = changed
+		}
+	}
+
+	slog.Info("cmdCodexSwitch: cleaning up session state", "session_key", msg.SessionKey)
+	e.cleanupInteractiveState(interactiveKey)
+	if targetInteractiveKey != interactiveKey {
+		e.cleanupInteractiveState(targetInteractiveKey)
+	}
+
+	session := targetSessions.GetOrCreateActive(msg.SessionKey)
+	session.SetAgentInfo(matched.ID, targetAgent.Name(), matched.Summary)
+	session.ClearHistory()
+	targetSessions.Save()
+
+	shortID := matched.ID
+	if len(shortID) > 12 {
+		shortID = shortID[:12]
+	}
+	displayName := targetSessions.GetSessionName(matched.ID)
+	if displayName == "" {
+		displayName = matched.Summary
+	}
+
+	reply := e.i18n.Tf(MsgSwitchSuccess, displayName, shortID, matched.MessageCount)
+	if workDirChanged != "" {
+		reply += e.i18n.Tf(MsgCodexSwitchDirHint, workDirChanged)
+	}
+	e.reply(p, msg.ReplyCtx, reply)
+}
+
+func sessionListDisplayName(summary string, customName string) string {
+	if customName != "" {
+		return "📌 " + customName
+	}
+
+	displayName := strings.ReplaceAll(summary, "\n", " ")
+	displayName = strings.Join(strings.Fields(displayName), " ")
+	if displayName == "" {
+		displayName = "(empty)"
+	}
+	if len([]rune(displayName)) > 40 {
+		displayName = string([]rune(displayName)[:40]) + "…"
+	}
+	return displayName
 }
 
 func (e *Engine) cmdSwitch(p Platform, msg *Message, args []string) {
@@ -2872,6 +3026,51 @@ func (e *Engine) cmdSwitch(p Platform, msg *Message, args []string) {
 	}
 	e.reply(p, msg.ReplyCtx,
 		e.i18n.Tf(MsgSwitchSuccess, displayName, shortID, matched.MessageCount))
+}
+
+func (e *Engine) codexSwitchTargetContext(p Platform, msg *Message, workDir, currentInteractiveKey string) (Agent, *SessionManager, string, string) {
+	info, err := os.Stat(workDir)
+	if err != nil || !info.IsDir() {
+		return nil, nil, "", ""
+	}
+
+	if e.multiWorkspace && e.workspaceBindings != nil {
+		channelID := extractChannelID(msg.SessionKey)
+		if channelID == "" {
+			return nil, nil, "", ""
+		}
+
+		projectKey := "project:" + e.name
+		channelName := ""
+		if b := e.workspaceBindings.Lookup(projectKey, channelID); b != nil {
+			channelName = b.ChannelName
+		}
+		if channelName == "" {
+			if resolver, ok := p.(ChannelNameResolver); ok {
+				if name, err := resolver.ResolveChannelName(channelID); err == nil {
+					channelName = name
+				}
+			}
+		}
+
+		e.workspaceBindings.Bind(projectKey, channelID, channelName, workDir)
+		wsAgent, wsSessions, err := e.getOrCreateWorkspaceAgent(workDir)
+		if err != nil {
+			slog.Warn("codex switch: create workspace agent failed", "workspace", workDir, "error", err)
+			return nil, nil, "", ""
+		}
+		return wsAgent, wsSessions, workDir + ":" + msg.SessionKey, workDir
+	}
+
+	switcher, ok := e.agent.(WorkDirSwitcher)
+	if !ok {
+		return nil, nil, "", ""
+	}
+	if switcher.GetWorkDir() == workDir {
+		return e.agent, e.sessions, currentInteractiveKey, ""
+	}
+	switcher.SetWorkDir(workDir)
+	return e.agent, e.sessions, msg.SessionKey, workDir
 }
 
 // matchSession resolves a user query to an agent session. Priority:
@@ -2988,7 +3187,7 @@ func (e *Engine) cmdShell(p Platform, msg *Message, raw string) {
 }
 
 func (e *Engine) cmdDir(p Platform, msg *Message, args []string) {
-	agent, sessions, interactiveKey, err := e.commandContext(p, msg)
+	agent, _, interactiveKey, err := e.commandContext(p, msg)
 	if err != nil {
 		e.reply(p, msg.ReplyCtx, e.i18n.Tf(MsgWsResolutionError, err))
 		return
@@ -2999,8 +3198,13 @@ func (e *Engine) cmdDir(p Platform, msg *Message, args []string) {
 		return
 	}
 
+	currentDir := switcher.GetWorkDir()
+	if currentDir == "" {
+		currentDir, _ = os.Getwd()
+	}
+
 	if len(args) == 0 {
-		e.reply(p, msg.ReplyCtx, e.i18n.Tf(MsgDirCurrent, switcher.GetWorkDir()))
+		e.reply(p, msg.ReplyCtx, e.i18n.Tf(MsgDirCurrent, currentDir))
 		return
 	}
 	if len(args) == 1 {
@@ -3013,11 +3217,7 @@ func (e *Engine) cmdDir(p Platform, msg *Message, args []string) {
 
 	newDir := filepath.Clean(strings.Join(args, " "))
 	if !filepath.IsAbs(newDir) {
-		baseDir := switcher.GetWorkDir()
-		if baseDir == "" {
-			baseDir, _ = os.Getwd()
-		}
-		newDir = filepath.Join(baseDir, newDir)
+		newDir = filepath.Join(currentDir, newDir)
 	}
 
 	info, err := os.Stat(newDir)
@@ -3026,15 +3226,68 @@ func (e *Engine) cmdDir(p Platform, msg *Message, args []string) {
 		return
 	}
 
-	switcher.SetWorkDir(newDir)
-	e.cleanupInteractiveState(interactiveKey)
+	newDir = normalizeWorkspacePath(newDir)
+	targetSessions := e.sessions
+	targetInteractiveKey := interactiveKey
+	if _, nextSessions, nextInteractiveKey, switchErr := e.switchDirTargetContext(p, msg, newDir, interactiveKey); switchErr != nil {
+		e.reply(p, msg.ReplyCtx, e.i18n.Tf(MsgError, switchErr))
+		return
+	} else {
+		targetSessions = nextSessions
+		targetInteractiveKey = nextInteractiveKey
+	}
 
-	s := sessions.GetOrCreateActive(msg.SessionKey)
+	e.cleanupInteractiveState(interactiveKey)
+	if targetInteractiveKey != interactiveKey {
+		e.cleanupInteractiveState(targetInteractiveKey)
+	}
+
+	s := targetSessions.GetOrCreateActive(msg.SessionKey)
 	s.SetAgentSessionID("", "")
 	s.ClearHistory()
-	sessions.Save()
+	targetSessions.Save()
 
 	e.reply(p, msg.ReplyCtx, e.i18n.Tf(MsgDirChanged, newDir))
+}
+
+func (e *Engine) switchDirTargetContext(p Platform, msg *Message, newDir, currentInteractiveKey string) (Agent, *SessionManager, string, error) {
+	if e.multiWorkspace && e.workspaceBindings != nil {
+		channelID := extractChannelID(msg.SessionKey)
+		if channelID == "" {
+			return nil, nil, "", fmt.Errorf("cannot resolve workspace channel for session %q", msg.SessionKey)
+		}
+
+		projectKey := "project:" + e.name
+		channelName := ""
+		if b := e.workspaceBindings.Lookup(projectKey, channelID); b != nil {
+			channelName = b.ChannelName
+		}
+		if channelName == "" {
+			if resolver, ok := p.(ChannelNameResolver); ok {
+				name, err := resolver.ResolveChannelName(channelID)
+				if err != nil {
+					return nil, nil, "", fmt.Errorf("resolve workspace channel name: %w", err)
+				}
+				channelName = name
+			}
+		}
+
+		e.workspaceBindings.Bind(projectKey, channelID, channelName, newDir)
+		wsAgent, wsSessions, err := e.getOrCreateWorkspaceAgent(newDir)
+		if err != nil {
+			return nil, nil, "", err
+		}
+		return wsAgent, wsSessions, newDir + ":" + msg.SessionKey, nil
+	}
+
+	switcher, ok := e.agent.(WorkDirSwitcher)
+	if !ok {
+		return nil, nil, "", fmt.Errorf("agent %q does not support work directory switching", e.agent.Name())
+	}
+	if switcher.GetWorkDir() != newDir {
+		switcher.SetWorkDir(newDir)
+	}
+	return e.agent, e.sessions, currentInteractiveKey, nil
 }
 
 const treeBrowsePageSize = 8

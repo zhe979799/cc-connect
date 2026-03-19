@@ -310,6 +310,10 @@ func (a *Agent) ListSessions(_ context.Context) ([]core.AgentSessionInfo, error)
 	return listCodexSessions(a.workDir)
 }
 
+func (a *Agent) ListAllSessions(_ context.Context) ([]core.AgentSessionInfo, error) {
+	return listAllCodexSessions()
+}
+
 func (a *Agent) GetSessionHistory(_ context.Context, sessionID string, limit int) ([]core.HistoryEntry, error) {
 	return getSessionHistory(sessionID, limit)
 }
