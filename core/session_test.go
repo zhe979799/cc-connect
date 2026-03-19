@@ -138,6 +138,27 @@ func TestSessionManager_Persistence(t *testing.T) {
 	}
 }
 
+func TestSessionManager_GetOrCreateActive_Persists(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "sessions.json")
+
+	sm1 := NewSessionManager(path)
+	s := sm1.GetOrCreateActive("user1")
+	if s == nil {
+		t.Fatal("expected non-nil session")
+	}
+
+	// Reload from disk — session should survive
+	sm2 := NewSessionManager(path)
+	list := sm2.ListSessions("user1")
+	if len(list) != 1 {
+		t.Fatalf("expected 1 session after reload, got %d", len(list))
+	}
+	if list[0].ID != s.ID {
+		t.Errorf("reloaded session ID = %q, want %q", list[0].ID, s.ID)
+	}
+}
+
 func TestSession_TryLockUnlock(t *testing.T) {
 	s := &Session{}
 	if !s.TryLock() {
@@ -305,6 +326,45 @@ func TestSessionManager_UserMetaPersistence(t *testing.T) {
 	meta := sm2.GetUserMeta("feishu:oc_abc:ou_xyz")
 	if meta == nil || meta.UserName != "Zhang San" || meta.ChatName != "Group Name" {
 		t.Errorf("expected persisted meta, got %+v", meta)
+	}
+}
+
+func TestSessionManager_DeleteByAgentSessionID(t *testing.T) {
+	sm := NewSessionManager("")
+
+	s1 := sm.NewSession("user1", "one")
+	s1.SetAgentSessionID("agent-1", "codex")
+
+	s2 := sm.NewSession("user2", "two")
+	s2.SetAgentSessionID("agent-2", "codex")
+
+	s3 := sm.NewSession("user3", "three")
+	s3.SetAgentSessionID("agent-1", "codex")
+
+	if removed := sm.DeleteByAgentSessionID("agent-1"); removed != 2 {
+		t.Fatalf("removed = %d, want 2", removed)
+	}
+	if got := sm.FindByID(s1.ID); got != nil {
+		t.Fatalf("expected s1 removed, got %+v", got)
+	}
+	if got := sm.FindByID(s3.ID); got != nil {
+		t.Fatalf("expected s3 removed, got %+v", got)
+	}
+	if got := sm.FindByID(s2.ID); got == nil {
+		t.Fatal("expected s2 preserved")
+	}
+	if got := sm.ActiveSessionID("user1"); got != "" {
+		t.Fatalf("user1 active session = %q, want empty", got)
+	}
+	if got := sm.ActiveSessionID("user3"); got != "" {
+		t.Fatalf("user3 active session = %q, want empty", got)
+	}
+	if list := sm.ListSessions("user2"); len(list) != 1 || list[0].ID != s2.ID {
+		t.Fatalf("user2 sessions = %+v, want only s2", list)
+	}
+
+	if removed := sm.DeleteByAgentSessionID("missing"); removed != 0 {
+		t.Fatalf("removed missing = %d, want 0", removed)
 	}
 }
 

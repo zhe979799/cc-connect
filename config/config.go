@@ -19,6 +19,7 @@ var ConfigPath string
 
 type Config struct {
 	DataDir         string              `toml:"data_dir"` // session store directory, default ~/.cc-connect
+	AttachmentSend  string              `toml:"attachment_send"`
 	Projects        []ProjectConfig     `toml:"projects"`
 	Commands        []CommandConfig     `toml:"commands"`     // global custom slash commands
 	Aliases         []AliasConfig       `toml:"aliases"`      // global command aliases
@@ -30,6 +31,7 @@ type Config struct {
 	Display         DisplayConfig       `toml:"display"`
 	StreamPreview   StreamPreviewConfig `toml:"stream_preview"`  // real-time streaming preview
 	RateLimit       RateLimitConfig     `toml:"rate_limit"`      // per-session rate limiting
+	Relay           RelayConfig         `toml:"relay"`           // bot-to-bot relay behavior
 	Quiet           *bool               `toml:"quiet,omitempty"` // global default for quiet mode; project-level overrides this
 	Cron            CronConfig          `toml:"cron"`
 	Webhook         WebhookConfig       `toml:"webhook"`
@@ -56,7 +58,8 @@ type BridgeConfig struct {
 	Enabled *bool  `toml:"enabled"`         // default false
 	Port    int    `toml:"port,omitempty"`  // listen port; default 9810
 	Token   string `toml:"token,omitempty"` // shared secret for authentication; required
-	Path    string `toml:"path,omitempty"`  // URL path; default "/bridge/ws"
+	Path        string   `toml:"path,omitempty"`         // URL path; default "/bridge/ws"
+	CORSOrigins []string `toml:"cors_origins,omitempty"` // allowed CORS origins; empty = no CORS
 }
 
 // ManagementConfig controls the HTTP Management API for external tools.
@@ -88,6 +91,24 @@ type RateLimitConfig struct {
 	WindowSecs  *int `toml:"window_secs"`  // window size in seconds; default 60
 }
 
+// UsersConfig controls per-user role assignments and policies within a project.
+type UsersConfig struct {
+	DefaultRole string                `toml:"default_role,omitempty"` // role for unmatched users; default "member"
+	Roles       map[string]RoleConfig `toml:"roles,omitempty"`
+}
+
+// RoleConfig defines policies for a user role.
+type RoleConfig struct {
+	UserIDs          []string         `toml:"user_ids"`
+	DisabledCommands []string         `toml:"disabled_commands,omitempty"`
+	RateLimit        *RateLimitConfig `toml:"rate_limit,omitempty"` // nil = inherit global
+}
+
+// RelayConfig controls bot-to-bot relay behavior.
+type RelayConfig struct {
+	TimeoutSecs *int `toml:"timeout_secs"` // max seconds to wait for relay response; 0 = disabled; default 120
+}
+
 // SpeechConfig configures speech-to-text for voice messages.
 type SpeechConfig struct {
 	Enabled  bool   `toml:"enabled"`
@@ -111,12 +132,12 @@ type SpeechConfig struct {
 
 // TTSConfig configures text-to-speech output (mirrors SpeechConfig style).
 type TTSConfig struct {
-	Enabled    bool   `toml:"enabled"`
-	Provider   string `toml:"provider"`     // "qwen" | "openai" | "minimax"
-	Voice      string `toml:"voice"`        // default voice name
-	TTSMode    string `toml:"tts_mode"`     // "voice_only" (default) | "always"
-	MaxTextLen int    `toml:"max_text_len"` // max rune count before skipping TTS; 0 = no limit
-	OpenAI     struct {
+	Enabled     bool   `toml:"enabled"`
+	Provider    string `toml:"provider"`     // "qwen" | "openai" | "minimax" | "espeak" | "pico" | "edge"
+	Voice       string `toml:"voice"`        // default voice name (for edge: "zh-CN-XiaoxiaoNeural"; for pico: "zh-CN"; for espeak: "zh")
+	TTSMode     string `toml:"tts_mode"`     // "voice_only" (default) | "always"
+	MaxTextLen  int    `toml:"max_text_len"` // max rune count before skipping TTS; 0 = no limit
+	OpenAI      struct {
 		APIKey  string `toml:"api_key"`
 		BaseURL string `toml:"base_url"`
 		Model   string `toml:"model"`
@@ -156,6 +177,7 @@ type ProjectConfig struct {
 	InjectSender     *bool            `toml:"inject_sender,omitempty"`     // prepend sender identity (platform + user ID) to each message sent to the agent
 	DisabledCommands []string         `toml:"disabled_commands,omitempty"` // commands to disable for this project (e.g. ["restart", "upgrade"])
 	AdminFrom        string           `toml:"admin_from,omitempty"`        // comma-separated user IDs allowed to run privileged commands; "*" = all allowed users
+	Users            *UsersConfig     `toml:"users,omitempty"`             // per-user role config; nil = legacy behavior
 }
 
 type AgentConfig struct {
@@ -164,13 +186,21 @@ type AgentConfig struct {
 	Providers []ProviderConfig `toml:"providers"`
 }
 
+// ProviderModelConfig defines a selectable model entry for a provider,
+// with an optional short alias used by the /model command.
+type ProviderModelConfig struct {
+	Model string `toml:"model"`
+	Alias string `toml:"alias,omitempty"`
+}
+
 type ProviderConfig struct {
-	Name     string            `toml:"name"`
-	APIKey   string            `toml:"api_key"`
-	BaseURL  string            `toml:"base_url,omitempty"`
-	Model    string            `toml:"model,omitempty"`
-	Thinking string            `toml:"thinking,omitempty"`
-	Env      map[string]string `toml:"env,omitempty"`
+	Name     string                `toml:"name"`
+	APIKey   string                `toml:"api_key"`
+	BaseURL  string                `toml:"base_url,omitempty"`
+	Model    string                `toml:"model,omitempty"`
+	Models   []ProviderModelConfig `toml:"models,omitempty"`
+	Thinking string                `toml:"thinking,omitempty"`
+	Env      map[string]string     `toml:"env,omitempty"`
 }
 
 type PlatformConfig struct {
@@ -217,6 +247,10 @@ func Load(path string) (*Config, error) {
 			cfg.DataDir = ".cc-connect"
 		}
 	}
+	cfg.AttachmentSend = strings.ToLower(strings.TrimSpace(cfg.AttachmentSend))
+	if cfg.AttachmentSend == "" {
+		cfg.AttachmentSend = "on"
+	}
 
 	if err := cfg.validate(); err != nil {
 		return nil, err
@@ -225,6 +259,14 @@ func Load(path string) (*Config, error) {
 }
 
 func (c *Config) validate() error {
+	switch strings.ToLower(strings.TrimSpace(c.AttachmentSend)) {
+	case "", "on", "off":
+	default:
+		return fmt.Errorf("config: attachment_send must be \"on\" or \"off\"")
+	}
+	if c.Relay.TimeoutSecs != nil && *c.Relay.TimeoutSecs < 0 {
+		return fmt.Errorf("config: relay.timeout_secs must be >= 0")
+	}
 	if len(c.Projects) == 0 {
 		return fmt.Errorf("config: at least one [[projects]] entry is required")
 	}
@@ -251,6 +293,46 @@ func (c *Config) validate() error {
 			if _, ok := proj.Agent.Options["work_dir"]; ok {
 				return fmt.Errorf("project %q: multi-workspace mode conflicts with agent work_dir (use base_dir instead)", proj.Name)
 			}
+		}
+		if err := validateUsersConfig(prefix, proj.Users); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// validateUsersConfig checks the [projects.users] section for consistency.
+func validateUsersConfig(prefix string, u *UsersConfig) error {
+	if u == nil {
+		return nil
+	}
+	if len(u.Roles) == 0 {
+		return fmt.Errorf("config: %s.users has no roles defined", prefix)
+	}
+	wildcardCount := 0
+	seenUserIDs := make(map[string]string) // userID → role name
+	for roleName, rc := range u.Roles {
+		if len(rc.UserIDs) == 0 {
+			return fmt.Errorf("config: %s.users.roles.%s has empty user_ids", prefix, roleName)
+		}
+		for _, uid := range rc.UserIDs {
+			if uid == "*" {
+				wildcardCount++
+				continue
+			}
+			lower := strings.ToLower(uid)
+			if prev, dup := seenUserIDs[lower]; dup {
+				return fmt.Errorf("config: %s.users: user %q appears in both role %q and %q", prefix, uid, prev, roleName)
+			}
+			seenUserIDs[lower] = roleName
+		}
+	}
+	if wildcardCount > 1 {
+		return fmt.Errorf("config: %s.users: wildcard user_ids=[\"*\"] appears in multiple roles", prefix)
+	}
+	if u.DefaultRole != "" {
+		if _, ok := u.Roles[u.DefaultRole]; !ok {
+			return fmt.Errorf("config: %s.users.default_role %q does not match any defined role", prefix, u.DefaultRole)
 		}
 	}
 	return nil
@@ -719,9 +801,7 @@ func EnsureProjectWithFeishuPlatform(opts EnsureProjectWithFeishuOptions) (*Ensu
 	}
 	workDir := strings.TrimSpace(opts.WorkDir)
 	if workDir != "" {
-		if _, ok := proj.Agent.Options["work_dir"]; !ok {
-			proj.Agent.Options["work_dir"] = workDir
-		}
+		proj.Agent.Options["work_dir"] = workDir
 	}
 
 	lines, hadTrailing := splitConfigLines(raw)
@@ -955,6 +1035,7 @@ func cloneAgentConfig(in AgentConfig) AgentConfig {
 				APIKey:   in.Providers[i].APIKey,
 				BaseURL:  in.Providers[i].BaseURL,
 				Model:    in.Providers[i].Model,
+				Models:   append([]ProviderModelConfig(nil), in.Providers[i].Models...),
 				Thinking: in.Providers[i].Thinking,
 				Env:      cloneStringMap(in.Providers[i].Env),
 			}
